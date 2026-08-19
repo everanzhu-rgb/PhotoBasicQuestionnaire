@@ -12,8 +12,17 @@ const { d1, r2 } = hostingConfig;
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
+  name: "photo-basic-questionnaire",
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  workers_dev: true,
+  preview_urls: true,
+  routes: [
+    {
+      pattern: "photobasicquestionnaire.everanz.com",
+      custom_domain: true,
+    },
+  ],
   d1_databases: d1
     ? [
         {
