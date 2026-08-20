@@ -39,19 +39,19 @@ const chapters = [
 ];
 
 type TransitionStyle = "veil" | "ash" | "bloom" | "fracture" | "blinds" | "film";
-type PortfolioImage = { src: string; title: string; cn: string; position: string; mobile: string; transition: TransitionStyle; accent: string; glassTone: string; glassOpacity: string };
+type PortfolioImage = { src: string; title: string; cn: string; position: string; mobile: string; subject: string; transition: TransitionStyle; accent: string; glassTone: string; glassOpacity: string };
 
 const portfolioImages: PortfolioImage[] = [
-  { src: "/portfolio/05-black-veil-sky.jpg", title: "Veil in the Wind", cn: "风中的黑纱", position: "35% center", mobile: "42% center", transition: "veil", accent: "#9fc8dc", glassTone: "#d9ebf3", glassOpacity: "62%" },
-  { src: "/portfolio/04-black-veil-hill.jpg", title: "A Quiet Farewell", cn: "无声的告别", position: "34% center", mobile: "49% center", transition: "ash", accent: "#c9ab8e", glassTone: "#eadfd2", glassOpacity: "64%" },
-  { src: "/portfolio/01-sword-in-moss.jpg", title: "The Sleeping Rose", cn: "苔痕与沉睡玫瑰", position: "38% 48%", mobile: "50% 50%", transition: "fracture", accent: "#b85d78", glassTone: "#dce8df", glassOpacity: "66%" },
-  { src: "/portfolio/02-reading-in-grass.jpg", title: "Rhythm of the Rain", cn: "林间阅读", position: "40% center", mobile: "51% center", transition: "bloom", accent: "#d2b86d", glassTone: "#e7efd5", glassOpacity: "64%" },
-  { src: "/portfolio/06-apple-light-diptych.jpg", title: "The Apple and Light", cn: "苹果与光", position: "35% 38%", mobile: "50% 31%", transition: "blinds", accent: "#d4d173", glassTone: "#eef0c9", glassOpacity: "61%" },
-  { src: "/portfolio/07-garden-motion.jpg", title: "Passing Through Green", cn: "穿过绿荫", position: "36% center", mobile: "50% center", transition: "film", accent: "#8fb985", glassTone: "#d8e8d3", glassOpacity: "66%" },
-  { src: "/portfolio/08-rose-wall.jpg", title: "Where Roses Remember", cn: "蔷薇记得", position: "38% 40%", mobile: "50% 42%", transition: "bloom", accent: "#df9fb1", glassTone: "#f3dce5", glassOpacity: "60%" },
-  { src: "/portfolio/09-cherry-duet.jpg", title: "Spring, Between Us", cn: "春日在我们之间", position: "38% 45%", mobile: "50% 36%", transition: "fracture", accent: "#dfaebd", glassTone: "#f1dce3", glassOpacity: "62%" },
-  { src: "/portfolio/10-cherry-school.jpg", title: "After the Bell", cn: "放学以后", position: "38% 44%", mobile: "50% 35%", transition: "blinds", accent: "#c996a5", glassTone: "#ead8dd", glassOpacity: "63%" },
-  { src: "/portfolio/03-tram-portrait.jpg", title: "A Day in Transit", cn: "晴日与电车", position: "40% center", mobile: "58% center", transition: "film", accent: "#d0ce75", glassTone: "#eaebcf", glassOpacity: "65%" },
+  { src: "/portfolio/05-black-veil-sky.jpg", title: "Veil in the Wind", cn: "风中的黑纱", position: "35% center", mobile: "42% center", subject: "44% center", transition: "veil", accent: "#9fc8dc", glassTone: "#d9ebf3", glassOpacity: "62%" },
+  { src: "/portfolio/04-black-veil-hill.jpg", title: "A Quiet Farewell", cn: "无声的告别", position: "34% center", mobile: "49% center", subject: "48% center", transition: "ash", accent: "#c9ab8e", glassTone: "#eadfd2", glassOpacity: "64%" },
+  { src: "/portfolio/01-sword-in-moss.jpg", title: "The Sleeping Rose", cn: "苔痕与沉睡玫瑰", position: "38% 48%", mobile: "50% 50%", subject: "50% 50%", transition: "fracture", accent: "#b85d78", glassTone: "#dce8df", glassOpacity: "66%" },
+  { src: "/portfolio/02-reading-in-grass.jpg", title: "Rhythm of the Rain", cn: "林间阅读", position: "40% center", mobile: "51% center", subject: "56% center", transition: "bloom", accent: "#d2b86d", glassTone: "#e7efd5", glassOpacity: "64%" },
+  { src: "/portfolio/06-apple-light-diptych.jpg", title: "The Apple and Light", cn: "苹果与光", position: "35% 38%", mobile: "50% 31%", subject: "50% 34%", transition: "blinds", accent: "#d4d173", glassTone: "#eef0c9", glassOpacity: "61%" },
+  { src: "/portfolio/07-garden-motion.jpg", title: "Passing Through Green", cn: "穿过绿荫", position: "36% center", mobile: "50% center", subject: "50% center", transition: "film", accent: "#8fb985", glassTone: "#d8e8d3", glassOpacity: "66%" },
+  { src: "/portfolio/08-rose-wall.jpg", title: "Where Roses Remember", cn: "蔷薇记得", position: "38% 40%", mobile: "50% 42%", subject: "50% 43%", transition: "bloom", accent: "#df9fb1", glassTone: "#f3dce5", glassOpacity: "60%" },
+  { src: "/portfolio/09-cherry-duet.jpg", title: "Spring, Between Us", cn: "春日在我们之间", position: "38% 45%", mobile: "50% 36%", subject: "50% 42%", transition: "fracture", accent: "#dfaebd", glassTone: "#f1dce3", glassOpacity: "62%" },
+  { src: "/portfolio/10-cherry-school.jpg", title: "After the Bell", cn: "放学以后", position: "38% 44%", mobile: "50% 35%", subject: "50% 42%", transition: "blinds", accent: "#c996a5", glassTone: "#ead8dd", glassOpacity: "63%" },
+  { src: "/portfolio/03-tram-portrait.jpg", title: "A Day in Transit", cn: "晴日与电车", position: "40% center", mobile: "58% center", subject: "62% center", transition: "film", accent: "#d0ce75", glassTone: "#eaebcf", glassOpacity: "65%" },
 ];
 
 function PortfolioBackdrop({ active, previous, quiet = false }: { active: number; previous: number; quiet?: boolean }) {
@@ -61,6 +61,8 @@ function PortfolioBackdrop({ active, previous, quiet = false }: { active: number
   return <div className={`portfolio-backdrop ${quiet ? "is-quiet" : ""}`} aria-hidden="true">
     <div className="portfolio-frame is-previous" style={{ backgroundImage: `url(${previousImage.src})`, "--desktop-position": previousImage.position, "--mobile-position": previousImage.mobile } as CSSProperties} />
     <div key={currentImage.src} className={`portfolio-frame is-current transition-${currentImage.transition}`} style={{ backgroundImage: `url(${currentImage.src})`, "--desktop-position": currentImage.position, "--mobile-position": currentImage.mobile } as CSSProperties} />
+    {!quiet && <div key={`depth-${currentImage.src}`} className="portfolio-depth" style={{ backgroundImage: `url(${currentImage.src})`, "--desktop-position": currentImage.position, "--mobile-position": currentImage.mobile } as CSSProperties} />}
+    {quiet && <div key={`subject-${currentImage.src}`} className="portfolio-subject" style={{ backgroundImage: `url(${currentImage.src})`, "--subject-position": currentImage.subject } as CSSProperties} />}
     <div key={`fx-${currentImage.src}`} className={`transition-particles particles-${currentImage.transition}`}>
       {particles.map((index) => <i key={index} style={{ "--particle-index": index, "--particle-x": `${(index * 37) % 101}%`, "--particle-y": `${12 + (index % 6) * 12}%`, "--particle-drift": `${(index - 11) * 2}px`, "--particle-start-x": `${(index - 11) * 4}px`, "--particle-start-y": `${(index % 5) * -12}px`, "--particle-delay": `${(index % 8) * 48}ms` } as CSSProperties} />)}
     </div>
@@ -262,9 +264,9 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setPreviousPortfolioIndex(portfolioIndex); setPortfolioIndex((portfolioIndex + 1) % portfolioImages.length);
-    }, 11000);
+    }, page === 0 ? 7500 : 11000);
     return () => window.clearTimeout(timer);
-  }, [portfolioIndex]);
+  }, [page, portfolioIndex]);
   const beginQuestionnaire = () => {
     if (pageMotion !== "idle") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setPage(1); return; }
@@ -426,7 +428,7 @@ export default function Home() {
   };
 
   const currentPortfolio = portfolioImages[portfolioIndex];
-  const sceneStyle = { "--scene-accent": currentPortfolio.accent, "--glass-tone": currentPortfolio.glassTone, "--glass-opacity": currentPortfolio.glassOpacity } as CSSProperties;
+  const sceneStyle = { "--scene-accent": currentPortfolio.accent, "--glass-tone": currentPortfolio.glassTone, "--glass-opacity": currentPortfolio.glassOpacity, "--scene-duration": page === 0 ? "7.5s" : "11s" } as CSSProperties;
   const motionClass = pageMotion === "idle" ? "" : `page-${pageMotion}`;
   const alignmentClass = "form-align-right";
 
