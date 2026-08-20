@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
-import { ChangeEvent, ReactNode, useMemo, useRef, useState } from "react";
+import { ChangeEvent, CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 type Photo = { id: string; name: string; url: string };
 type MissingItem = { id: string; page: number; chapter: string; question: string; detail: string };
@@ -37,6 +38,103 @@ const chapters = [
   "灵感与故事", "选择原因与了解渠道", "拍摄安排与授权", "其他补充与确认",
 ];
 
+type TransitionStyle = "veil" | "ash" | "bloom" | "fracture" | "blinds" | "film";
+type PortfolioImage = { src: string; title: string; cn: string; position: string; mobile: string; transition: TransitionStyle; accent: string; glassTone: string; glassOpacity: string };
+
+const portfolioImages: PortfolioImage[] = [
+  { src: "/portfolio/05-black-veil-sky.jpg", title: "Veil in the Wind", cn: "风中的黑纱", position: "35% center", mobile: "42% center", transition: "veil", accent: "#9fc8dc", glassTone: "#d9ebf3", glassOpacity: "62%" },
+  { src: "/portfolio/04-black-veil-hill.jpg", title: "A Quiet Farewell", cn: "无声的告别", position: "34% center", mobile: "49% center", transition: "ash", accent: "#c9ab8e", glassTone: "#eadfd2", glassOpacity: "64%" },
+  { src: "/portfolio/01-sword-in-moss.jpg", title: "The Sleeping Rose", cn: "苔痕与沉睡玫瑰", position: "38% 48%", mobile: "50% 50%", transition: "fracture", accent: "#b85d78", glassTone: "#dce8df", glassOpacity: "66%" },
+  { src: "/portfolio/02-reading-in-grass.jpg", title: "Rhythm of the Rain", cn: "林间阅读", position: "40% center", mobile: "51% center", transition: "bloom", accent: "#d2b86d", glassTone: "#e7efd5", glassOpacity: "64%" },
+  { src: "/portfolio/06-apple-light-diptych.jpg", title: "The Apple and Light", cn: "苹果与光", position: "35% 38%", mobile: "50% 31%", transition: "blinds", accent: "#d4d173", glassTone: "#eef0c9", glassOpacity: "61%" },
+  { src: "/portfolio/07-garden-motion.jpg", title: "Passing Through Green", cn: "穿过绿荫", position: "36% center", mobile: "50% center", transition: "film", accent: "#8fb985", glassTone: "#d8e8d3", glassOpacity: "66%" },
+  { src: "/portfolio/08-rose-wall.jpg", title: "Where Roses Remember", cn: "蔷薇记得", position: "38% 40%", mobile: "50% 42%", transition: "bloom", accent: "#df9fb1", glassTone: "#f3dce5", glassOpacity: "60%" },
+  { src: "/portfolio/09-cherry-duet.jpg", title: "Spring, Between Us", cn: "春日在我们之间", position: "38% 45%", mobile: "50% 36%", transition: "fracture", accent: "#dfaebd", glassTone: "#f1dce3", glassOpacity: "62%" },
+  { src: "/portfolio/10-cherry-school.jpg", title: "After the Bell", cn: "放学以后", position: "38% 44%", mobile: "50% 35%", transition: "blinds", accent: "#c996a5", glassTone: "#ead8dd", glassOpacity: "63%" },
+  { src: "/portfolio/03-tram-portrait.jpg", title: "A Day in Transit", cn: "晴日与电车", position: "40% center", mobile: "58% center", transition: "film", accent: "#d0ce75", glassTone: "#eaebcf", glassOpacity: "65%" },
+];
+
+function PortfolioBackdrop({ active, previous, quiet = false }: { active: number; previous: number; quiet?: boolean }) {
+  const currentImage = portfolioImages[active];
+  const previousImage = portfolioImages[previous];
+  const particles = Array.from({ length: 22 }, (_, index) => index);
+  return <div className={`portfolio-backdrop ${quiet ? "is-quiet" : ""}`} aria-hidden="true">
+    <div className="portfolio-frame is-previous" style={{ backgroundImage: `url(${previousImage.src})`, "--desktop-position": previousImage.position, "--mobile-position": previousImage.mobile } as CSSProperties} />
+    <div key={currentImage.src} className={`portfolio-frame is-current transition-${currentImage.transition}`} style={{ backgroundImage: `url(${currentImage.src})`, "--desktop-position": currentImage.position, "--mobile-position": currentImage.mobile } as CSSProperties} />
+    <div key={`fx-${currentImage.src}`} className={`transition-particles particles-${currentImage.transition}`}>
+      {particles.map((index) => <i key={index} style={{ "--particle-index": index, "--particle-x": `${(index * 37) % 101}%`, "--particle-y": `${12 + (index % 6) * 12}%`, "--particle-drift": `${(index - 11) * 2}px`, "--particle-start-x": `${(index - 11) * 4}px`, "--particle-start-y": `${(index % 5) * -12}px`, "--particle-delay": `${(index % 8) * 48}ms` } as CSSProperties} />)}
+    </div>
+    <div className="portfolio-vignette" /><div className="film-grain" />
+  </div>;
+}
+
+function FilmRibbon({ active, onSelect }: { active: number; onSelect: (index: number) => void }) {
+  const ribbon = [...portfolioImages, ...portfolioImages];
+  return <div className="film-ribbon" aria-label="摄影作品画廊"><div className="film-ribbon-track">
+    {ribbon.map((image, index) => {
+      const imageIndex = index % portfolioImages.length;
+      const duplicate = index >= portfolioImages.length;
+      return <button key={`${image.src}-${index}`} type="button" className={active === imageIndex ? "is-active" : ""} tabIndex={duplicate ? -1 : 0} aria-hidden={duplicate || undefined} aria-label={`查看作品 ${imageIndex + 1}：${image.cn}`} onClick={() => onSelect(imageIndex)}>
+        <img src={image.src} alt="" loading={imageIndex < 3 ? "eager" : "lazy"} /><span>{String(imageIndex + 1).padStart(2, "0")}</span><em>{image.title}</em>
+      </button>;
+    })}
+  </div></div>;
+}
+
+type Ripple = { id: number; x: number; y: number; size: number; faint: boolean };
+function RippleLayer({ accent }: { accent: string }) {
+  const [ripples, setRipples] = useState<Ripple[]>([]);
+  const nextId = useRef(0);
+  const lastMove = useRef({ time: 0, x: 0, y: 0 });
+  useEffect(() => {
+    const add = (x: number, y: number, faint: boolean) => {
+      const id = ++nextId.current;
+      setRipples((items) => [...items.slice(-6), { id, x, y, size: faint ? 62 : 118, faint }]);
+      window.setTimeout(() => setRipples((items) => items.filter((item) => item.id !== id)), 920);
+    };
+    const onDown = (event: PointerEvent) => add(event.clientX, event.clientY, false);
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" && event.buttons === 0) return;
+      const now = performance.now(); const distance = Math.hypot(event.clientX - lastMove.current.x, event.clientY - lastMove.current.y);
+      if (now - lastMove.current.time < 85 || distance < 24) return;
+      lastMove.current = { time: now, x: event.clientX, y: event.clientY }; add(event.clientX, event.clientY, true);
+    };
+    window.addEventListener("pointerdown", onDown, { passive: true }); window.addEventListener("pointermove", onMove, { passive: true });
+    return () => { window.removeEventListener("pointerdown", onDown); window.removeEventListener("pointermove", onMove); };
+  }, []);
+  return <div className="ripple-layer" style={{ "--ripple-color": accent } as CSSProperties} aria-hidden="true">{ripples.map((ripple) => <i key={ripple.id} className={ripple.faint ? "is-faint" : ""} style={{ left: ripple.x, top: ripple.y, "--ripple-size": `${ripple.size}px` } as CSSProperties} />)}</div>;
+}
+
+type PetalGroup = { id: number; x: number; y: number; count: number };
+function ClickPetalLayer() {
+  const [groups, setGroups] = useState<PetalGroup[]>([]);
+  const nextId = useRef(0);
+  useEffect(() => {
+    const burst = (target: Element, x: number, y: number) => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const explicit = Number(target.getAttribute("data-petal-count"));
+      const count = Number.isFinite(explicit) && explicit > 0 ? explicit : target.classList.contains("choice") ? 4 : target.classList.contains("primary") ? 9 : target.classList.contains("secondary") ? 6 : 5;
+      const id = ++nextId.current;
+      setGroups((items) => [...items.slice(-5), { id, x, y, count }]);
+      window.setTimeout(() => setGroups((items) => items.filter((item) => item.id !== id)), 1500);
+    };
+    const onPointer = (event: PointerEvent) => {
+      const target = (event.target as Element | null)?.closest("button,[role='button']");
+      if (target) burst(target, event.clientX, event.clientY);
+    };
+    const onClick = (event: MouseEvent) => {
+      if (event.detail !== 0) return;
+      const target = (event.target as Element | null)?.closest("button,[role='button']");
+      if (!target) return;
+      const box = target.getBoundingClientRect(); burst(target, box.left + box.width / 2, box.top + box.height / 2);
+    };
+    window.addEventListener("pointerdown", onPointer, { passive: true });
+    window.addEventListener("click", onClick);
+    return () => { window.removeEventListener("pointerdown", onPointer); window.removeEventListener("click", onClick); };
+  }, []);
+  return <div className="click-petal-layer" aria-hidden="true">{groups.map((group) => <div className="click-petal-group" key={group.id} style={{ left: group.x, top: group.y }}>{Array.from({ length: group.count }, (_, index) => <i key={index} style={{ "--petal-x": `${Math.cos(index * 2.399) * (48 + (index % 4) * 18)}px`, "--petal-y": `${24 + (index % 5) * 17}px`, "--petal-rotation": `${150 + index * 47}deg`, "--petal-delay": `${(index % 5) * 26}ms`, "--petal-color": index % 5 === 0 ? "#f2e9df" : index % 3 === 0 ? "#984b62" : "#ce8196" } as CSSProperties} />)}</div>)}</div>;
+}
+
 const propPrompts = ["花或植物", "书、信件或日记", "伞、帽子或丝巾", "镜子或相框", "乐器", "有纪念意义的物品", "泡泡、风或纱", "已经准备好的服装"];
 const whyOptions = ["喜欢整体的光线、色彩和氛围", "喜欢自然、不刻意摆拍的人物状态", "喜欢照片中的故事感和情绪表达", "喜欢场景选择和整体画面风格", "有一组或一张具体作品吸引了我", "其他"];
 const discoveryOptions = ["小红书首页 · 随意刷到", "小红书搜索特定关键词", "抖音", "B站", "朋友推荐", "微信 · 朋友圈", "以前就关注过", "其他"];
@@ -72,7 +170,7 @@ function BipolarScale({ left, right, value, onChange, onInteract }: { left: stri
     <div className="range-labels"><span>{left}</span><b>{value}%</b><span>{right}</span></div>
     <input className={`range ${active ? "is-dragging" : ""}`} aria-label={`${left}到${right}`} type="range" min="0" max="100" value={value}
       style={{ background: `linear-gradient(90deg,#748aa0 0%,#a5c6d9 ${value / 2}%,#efe9df 50%,#d8a98f ${(value + 100) / 2}%,#a66f62 100%)` }}
-      onPointerDown={() => setActive(true)} onPointerUp={() => setActive(false)} onBlur={() => setActive(false)} onChange={(event) => update(event.target.value)} />
+      onPointerDown={() => { setActive(true); onInteract(); }} onPointerUp={() => setActive(false)} onBlur={() => setActive(false)} onChange={(event) => update(event.target.value)} />
   </div>;
 }
 
@@ -93,7 +191,7 @@ function CompositionScale({ value, onChange, onInteract }: { value: number; onCh
     <div className="range-stage">
       <input className={`range subject-range ${active ? "is-dragging" : ""}`} aria-label="人物在画面中的占比" type="range" min="0" max="100" value={value}
         style={{ background: `linear-gradient(90deg,#718d79 0%,#bad2bf ${value}%,#e6dfd5 ${value}%,#886e68 100%)` }}
-        onPointerDown={() => setActive(true)} onPointerUp={() => setActive(false)} onBlur={() => setActive(false)} onChange={(event) => update(event.target.value)} />
+        onPointerDown={() => { setActive(true); onInteract(); }} onPointerUp={() => setActive(false)} onBlur={() => setActive(false)} onChange={(event) => update(event.target.value)} />
       {boundary && <span className="boundary-tip" role="status">{boundary}</span>}
     </div>
     <div className="range-value">人物约占画面 {value}%，环境约占画面 {100 - value}%</div>
@@ -121,7 +219,7 @@ function PhotoUpload({ photos, onChange, max, label, required = false }: {
       <span className="upload-plus">＋</span><strong>{label}{required ? " · 必需" : ""}</strong><small>点击选择图片 · 最多 {max} 张 · 仅在本地预览</small>
     </button>
     {photos.length > 0 && <div className="photo-grid">{photos.map((photo) => <figure key={photo.id}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}<img src={photo.url} alt={photo.name} />
+      <img src={photo.url} alt={photo.name} />
       <button type="button" aria-label={`移除 ${photo.name}`} onClick={() => remove(photo.id)}>×</button>
     </figure>)}</div>}
   </div>;
@@ -148,12 +246,31 @@ function Tags({ values }: { values: string[] }) {
 
 export default function Home() {
   const [page, setPage] = useState(0);
+  const [portfolioIndex, setPortfolioIndex] = useState(0);
+  const [previousPortfolioIndex, setPreviousPortfolioIndex] = useState(portfolioImages.length - 1);
+  const [pageMotion, setPageMotion] = useState<"idle" | "forward-out" | "back-out" | "forward-in" | "back-in">("idle");
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [toast, setToast] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const isDouble = answers.package.startsWith("双人");
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => setAnswers((old) => ({ ...old, [key]: value }));
+  const choosePortfolio = (nextIndex: number) => {
+    if (nextIndex === portfolioIndex) return;
+    setPreviousPortfolioIndex(portfolioIndex); setPortfolioIndex(nextIndex);
+  };
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPreviousPortfolioIndex(portfolioIndex); setPortfolioIndex((portfolioIndex + 1) % portfolioImages.length);
+    }, 11000);
+    return () => window.clearTimeout(timer);
+  }, [portfolioIndex]);
+  const beginQuestionnaire = () => {
+    if (pageMotion !== "idle") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setPage(1); return; }
+    window.setTimeout(() => { setPage(1); setPageMotion("forward-in"); window.scrollTo({ top: 0 }); }, 420);
+    window.setTimeout(() => setPageMotion("idle"), 980);
+  };
 
   const selectedSummary = useMemo(() => ({
     package: answers.package || "未选择",
@@ -177,15 +294,21 @@ export default function Home() {
     if (!answers.publicity) add("q16", 6, "Q16 照片公开授权", "请选择照片公开授权范围");
     return items;
   };
-  const next = () => {
-    setPage((value) => Math.min(8, value + 1)); window.scrollTo({ top: 0, behavior: "smooth" });
+  const navigatePage = (target: number, direction: "forward" | "back") => {
+    if (pageMotion !== "idle" || target === page) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setPage(target); window.scrollTo({ top: 0 }); return; }
+    setPageMotion(`${direction}-out`);
+    window.setTimeout(() => { setPage(target); setPageMotion(`${direction}-in`); window.scrollTo({ top: 0 }); }, 360);
+    window.setTimeout(() => setPageMotion("idle"), 900);
   };
-  const previous = () => { setPage((value) => Math.max(0, value - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const next = () => navigatePage(Math.min(8, page + 1), "forward");
+  const previous = () => navigatePage(Math.max(0, page - 1), "back");
   const jumpToMissing = (item: MissingItem) => {
-    setMissingItems([]); setPage(item.page);
+    setMissingItems([]); setPage(item.page); setPageMotion("back-in");
     window.setTimeout(() => {
       const element = document.getElementById(item.id); element?.scrollIntoView({ behavior: "smooth", block: "center" });
       element?.classList.add("attention"); window.setTimeout(() => element?.classList.remove("attention"), 1800);
+      window.setTimeout(() => setPageMotion("idle"), 650);
     }, 100);
   };
 
@@ -198,60 +321,128 @@ export default function Home() {
     if (missing.length) { setMissingItems(missing); return; }
     setDownloading(true);
     try {
-      const canvas = document.createElement("canvas"); canvas.width = 1240; canvas.height = 9000;
-      const ctx = canvas.getContext("2d"); if (!ctx) return;
-      ctx.fillStyle = "#f7f1e8"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#e5ece2"; ctx.beginPath(); ctx.arc(1080, 130, 250, 0, Math.PI * 2); ctx.fill();
-      const margin = 92; let y = 100;
-      const font = '"Noto Serif SC", "Microsoft YaHei", sans-serif';
-      const wrap = (text: string, maxWidth: number, size = 28) => {
-        ctx.font = `${size}px ${font}`; const lines: string[] = []; let line = "";
-        for (const char of text || "未填写") { const test = line + char; if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = char; } else line = test; }
+      const { jsPDF } = await import("jspdf");
+      const width = 1240, height = 1754;
+      const [coverBackground, ...portfolioBackgrounds] = await Promise.all([
+        loadImage("/pdf/archive-cover-sword.jpg"), ...portfolioImages.map((image) => loadImage(image.src)),
+      ]);
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [width, height], hotfixes: ["px_scaling"] });
+      const serif = '"Songti SC", "STSong", "Noto Serif SC", "Microsoft YaHei", serif';
+      const makeCanvas = () => { const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height; const context = canvas.getContext("2d"); if (!context) throw new Error("Canvas unavailable"); return { canvas, context }; };
+      const drawCoverImage = (context: CanvasRenderingContext2D, image: HTMLImageElement, focalX = .5, focalY = .5) => {
+        const scale = Math.max(width / image.width, height / image.height);
+        const sourceWidth = width / scale, sourceHeight = height / scale;
+        const sourceX = Math.max(0, Math.min(image.width - sourceWidth, (image.width - sourceWidth) * focalX));
+        const sourceY = Math.max(0, Math.min(image.height - sourceHeight, (image.height - sourceHeight) * focalY));
+        context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height);
+      };
+      const cover = makeCanvas(); drawCoverImage(cover.context, coverBackground, .5, .55);
+      const coverGradient = cover.context.createLinearGradient(0, 0, 0, height);
+      coverGradient.addColorStop(0, "rgba(8,12,9,.16)"); coverGradient.addColorStop(.48, "rgba(8,11,9,.12)"); coverGradient.addColorStop(1, "rgba(5,8,6,.76)");
+      cover.context.fillStyle = coverGradient; cover.context.fillRect(0, 0, width, height);
+      cover.context.strokeStyle = "rgba(248,241,230,.56)"; cover.context.lineWidth = 2; cover.context.strokeRect(54, 54, width - 108, height - 108);
+      cover.context.fillStyle = "rgba(250,244,234,.8)"; cover.context.font = "18px Arial"; cover.context.letterSpacing = "5px"; cover.context.fillText("PORTRAIT SESSION · PRIVATE ARCHIVE", 92, 118);
+      cover.context.fillStyle = "#fbf4ea"; cover.context.font = 'italic 84px Georgia, "Times New Roman", serif'; cover.context.fillText("Before We Meet", 90, 1270);
+      cover.context.font = `500 43px ${serif}`; cover.context.fillText(`${answers.name || "客片"} · 拍摄灵感档案`, 96, 1342);
+      cover.context.fillStyle = "rgba(248,241,230,.78)"; cover.context.font = `24px ${serif}`; cover.context.fillText(`${selectedSummary.people}  ·  ${answers.package}`, 98, 1392);
+      cover.context.fillStyle = "rgba(248,241,230,.6)"; cover.context.font = "17px Arial"; cover.context.fillText(new Date().toLocaleDateString("zh-CN"), 98, 1640);
+      pdf.addImage(cover.canvas.toDataURL("image/jpeg", .92), "JPEG", 0, 0, width, height, undefined, "FAST");
+
+      const margin = 112, contentBottom = 1580;
+      let pageNumber = 0, y = 226;
+      let sheet = makeCanvas();
+      let seed = Array.from(`${answers.name}|${answers.package}|${answers.story}|${answers.inspirationText}`).reduce((value, character) => ((value << 5) - value + character.charCodeAt(0)) | 0, 2166136261) >>> 0;
+      const backgroundOrder = portfolioImages.map((_, index) => index);
+      for (let index = backgroundOrder.length - 1; index > 0; index--) { seed = (seed * 1664525 + 1013904223) >>> 0; const swapIndex = seed % (index + 1); [backgroundOrder[index], backgroundOrder[swapIndex]] = [backgroundOrder[swapIndex], backgroundOrder[index]]; }
+      const pdfFocals = [[.38,.48],[.36,.5],[.46,.52],[.42,.5],[.46,.38],[.46,.5],[.5,.42],[.5,.42],[.5,.43],[.58,.5]];
+      const startContentPage = (index: number) => {
+        sheet = makeCanvas(); pageNumber = index; y = 226;
+        const backgroundIndex = backgroundOrder[(index - 1) % backgroundOrder.length]; const focal = pdfFocals[backgroundIndex];
+        drawCoverImage(sheet.context, portfolioBackgrounds[backgroundIndex], focal[0], focal[1]);
+        sheet.context.fillStyle = "rgba(8,12,10,.18)"; sheet.context.fillRect(0, 0, width, height);
+        sheet.context.fillStyle = "rgba(247,250,248,.62)"; sheet.context.beginPath(); sheet.context.roundRect(58, 62, width - 116, height - 124, 38); sheet.context.fill();
+        const sheen = sheet.context.createLinearGradient(58, 62, width - 58, 620);
+        sheen.addColorStop(0, "rgba(255,255,255,.38)"); sheen.addColorStop(.42, "rgba(255,255,255,.04)"); sheen.addColorStop(1, "rgba(225,236,232,.08)");
+        sheet.context.fillStyle = sheen; sheet.context.beginPath(); sheet.context.roundRect(58, 62, width - 116, height - 124, 38); sheet.context.fill();
+        sheet.context.strokeStyle = "rgba(255,255,255,.88)"; sheet.context.lineWidth = 3; sheet.context.beginPath(); sheet.context.roundRect(58, 62, width - 116, height - 124, 38); sheet.context.stroke();
+        sheet.context.strokeStyle = "rgba(52,68,59,.13)"; sheet.context.lineWidth = 1; sheet.context.beginPath(); sheet.context.roundRect(64, 68, width - 128, height - 136, 34); sheet.context.stroke();
+        sheet.context.fillStyle = "#48574f"; sheet.context.font = "16px Arial"; sheet.context.letterSpacing = "4px"; sheet.context.fillText("PORTRAIT SESSION · INSPIRATION NOTES", margin, 132);
+        sheet.context.fillStyle = "#59655f"; sheet.context.font = "16px Arial"; sheet.context.fillText(`PAGE ${String(index).padStart(2, "0")}`, width - margin - 72, 132);
+        sheet.context.strokeStyle = "rgba(46,62,53,.22)"; sheet.context.beginPath(); sheet.context.moveTo(margin, 168); sheet.context.lineTo(width - margin, 168); sheet.context.stroke();
+      };
+      const flushContentPage = () => { pdf.addPage([width, height], "portrait"); pdf.addImage(sheet.canvas.toDataURL("image/jpeg", .9), "JPEG", 0, 0, width, height, undefined, "FAST"); };
+      const newPage = () => { flushContentPage(); startContentPage(pageNumber + 1); };
+      startContentPage(1);
+      const wrap = (content: string, maxWidth: number, size: number) => {
+        sheet.context.font = `${size}px ${serif}`; const lines: string[] = []; let line = "";
+        for (const char of content || "未填写") { const test = line + char; if (sheet.context.measureText(test).width > maxWidth && line) { lines.push(line); line = char; } else line = test; }
         if (line) lines.push(line); return lines;
       };
-      const text = (content: string, x: number, maxWidth: number, size = 28, color = "#33413a", lineHeight = 44) => {
-        ctx.fillStyle = color; ctx.font = `${size}px ${font}`; const lines = wrap(content, maxWidth, size); lines.forEach((line, i) => ctx.fillText(line, x, y + i * lineHeight)); y += lines.length * lineHeight; return lines.length;
+      const section = (label: string) => {
+        if (y + 150 > contentBottom) newPage();
+        y += 34; sheet.context.fillStyle = "#334039"; sheet.context.font = `600 31px ${serif}`; sheet.context.fillText(label, margin, y); y += 30;
+        sheet.context.strokeStyle = "rgba(61,73,64,.22)"; sheet.context.beginPath(); sheet.context.moveTo(margin, y); sheet.context.lineTo(width - margin, y); sheet.context.stroke(); y += 42;
       };
-      const title = (label: string) => { y += 34; ctx.fillStyle = "#52695a"; ctx.font = `600 30px ${font}`; ctx.fillText(label, margin, y); y += 28; ctx.strokeStyle = "#cbd5ca"; ctx.beginPath(); ctx.moveTo(margin, y); ctx.lineTo(canvas.width - margin, y); ctx.stroke(); y += 44; };
-      const row = (label: string, value: string | string[]) => { ctx.fillStyle = "#8a918b"; ctx.font = `22px ${font}`; ctx.fillText(label, margin, y); y += 36; text(Array.isArray(value) ? (value.length ? value.join(" · ") : "未填写") : value || "未填写", margin, canvas.width - margin * 2, 27, "#34423a", 42); y += 20; };
+      const row = (label: string, value: string | string[]) => {
+        const content = Array.isArray(value) ? (value.length ? value.join(" · ") : "未填写") : value || "未填写";
+        let lines = wrap(content, width - margin * 2, 26);
+        if (y + 76 > contentBottom) newPage();
+        sheet.context.fillStyle = "#7e857e"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(label, margin, y); y += 34;
+        while (lines.length) {
+          if (y + 44 > contentBottom) { newPage(); sheet.context.fillStyle = "#8a908a"; sheet.context.font = `17px ${serif}`; sheet.context.fillText(`${label} · 续`, margin, y); y += 34; }
+          const line = lines.shift()!; sheet.context.fillStyle = "#303a33"; sheet.context.font = `26px ${serif}`; sheet.context.fillText(line, margin, y); y += 41;
+        }
+        y += 20;
+      };
       const photos = async (label: string, items: Photo[]) => {
-        if (!items.length) return; ctx.fillStyle = "#8a918b"; ctx.font = `22px ${font}`; ctx.fillText(label, margin, y); y += 24;
-        const size = 210, gap = 18; for (let i = 0; i < items.length; i++) { try { const image = await loadImage(items[i].url); const x = margin + (i % 4) * (size + gap); const py = y + Math.floor(i / 4) * (size + gap); const ratio = Math.max(size / image.width, size / image.height); const sw = size / ratio, sh = size / ratio; ctx.save(); ctx.beginPath(); ctx.roundRect(x, py, size, size, 18); ctx.clip(); ctx.drawImage(image, (image.width - sw) / 2, (image.height - sh) / 2, sw, sh, x, py, size, size); ctx.restore(); } catch { /* ignore unreadable local image */ } }
-        y += Math.ceil(items.length / 4) * (size + gap) + 20;
+        if (!items.length) { row(label, "未上传"); return; }
+        if (y + 300 > contentBottom) newPage();
+        sheet.context.fillStyle = "#7e857e"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(label, margin, y); y += 30;
+        const cellWidth = 321, cellHeight = 228, gap = 26;
+        for (let index = 0; index < items.length; index++) {
+          if (index > 0 && index % 3 === 0) y += cellHeight + 28;
+          if (y + cellHeight > contentBottom) { newPage(); sheet.context.fillStyle = "#7e857e"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(`${label} · 续`, margin, y); y += 30; }
+          const x = margin + (index % 3) * (cellWidth + gap);
+          sheet.context.fillStyle = "rgba(38,46,40,.92)"; sheet.context.beginPath(); sheet.context.roundRect(x, y, cellWidth, cellHeight, 12); sheet.context.fill();
+          try {
+            const image = await loadImage(items[index].url); const ratio = Math.min((cellWidth - 12) / image.width, (cellHeight - 12) / image.height);
+            const drawWidth = image.width * ratio, drawHeight = image.height * ratio;
+            sheet.context.drawImage(image, x + (cellWidth - drawWidth) / 2, y + (cellHeight - drawHeight) / 2, drawWidth, drawHeight);
+          } catch { sheet.context.fillStyle = "#d9d4ca"; sheet.context.font = `18px ${serif}`; sheet.context.fillText("图片读取失败", x + 84, y + 122); }
+        }
+        y += cellHeight + 42;
       };
-      ctx.fillStyle = "#718774"; ctx.font = `20px Arial`; ctx.fillText("PORTRAIT SESSION · INSPIRATION NOTES", margin, y); y += 72;
-      ctx.fillStyle = "#33413a"; ctx.font = `600 58px ${font}`; ctx.fillText(`${answers.name || "客片"} · 拍摄灵感档案`, margin, y); y += 54;
-      ctx.fillStyle = "#7b837c"; ctx.font = `24px ${font}`; ctx.fillText("拍摄前信息与偏好记录", margin, y); y += 42;
-      title("01 · 基本信息"); row("拍摄者", selectedSummary.people); row("身高", isDouble ? `${answers.height} cm · ${answers.secondHeight} cm` : `${answers.height} cm`); row("套餐", answers.package); await photos("近期生活照", [...answers.lifePhotos, ...answers.secondLifePhotos]);
-      title("02 · 情绪与风格参考"); row("自定义情绪", answers.customFeeling); row("忧郁—生命力", `${answers.moodVitality}%`); row("轻盈—沉重", `${answers.moodWeight}%`); row("克制—热烈", `${answers.moodIntensity}%`); row("参考原因", answers.styleReferenceReason); await photos("主页风格参考", answers.styleReferencePhotos);
-      title("03 · 构图与道具"); row("人物画面占比", `${answers.subjectScale}%`); row("景别", answers.shots); row("道具或自带物品", answers.propNotes); await photos("相关图片", answers.propPhotos);
-      title("04 · 灵感与故事"); row("故事构想", answers.story); row("参考链接", answers.inspirationLinks); row("其他参考内容", answers.inspirationText); await photos("灵感图片", answers.inspirationPhotos);
-      title("05 · 选择原因与了解渠道"); row("选择原因", answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why); row("了解渠道", answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery); row("搜索关键词或补充", answers.discoveryDetail);
-      title("06 · 拍摄安排与授权"); row("天气偏好", answers.weather); row("天气变化时", answers.weatherPlan); row("拍摄助手", answers.assistant); row("照片公开范围", answers.publicity);
-      title("07 · 其他补充"); row("补充内容", answers.noSupplement ? "没有其他补充" : answers.supplement);
-      y += 34; ctx.fillStyle = "#708074"; ctx.font = `24px ${font}`; ctx.fillText("问卷填写完成，请摄影师在拍摄前确认以上信息。", margin, y); y += 70;
-      const cropped = document.createElement("canvas"); cropped.width = canvas.width; cropped.height = Math.min(canvas.height, y); cropped.getContext("2d")?.drawImage(canvas, 0, 0);
-      const { jsPDF } = await import("jspdf"); const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [cropped.width, cropped.height], hotfixes: ["px_scaling"] });
-      pdf.addImage(cropped.toDataURL("image/jpeg", .9), "JPEG", 0, 0, cropped.width, cropped.height, undefined, "FAST");
-      pdf.save(`${(answers.name || "客片").replace(/[\\/:*?\"<>|]/g, "-")}_拍摄灵感档案.pdf`);
-    } catch { notify("PDF 生成遇到问题，请稍后再试"); } finally { setDownloading(false); }
+      section("01 · 基本信息"); row("拍摄者", selectedSummary.people); row("身高", isDouble ? `${answers.height} cm · ${answers.secondHeight} cm` : `${answers.height} cm`); row("套餐", answers.package); await photos("近期生活照", [...answers.lifePhotos, ...answers.secondLifePhotos]);
+      section("02 · 情绪与风格参考"); row("自定义情绪", answers.customFeeling); row("忧郁—生命力", `${answers.moodVitality}%`); row("轻盈—沉重", `${answers.moodWeight}%`); row("克制—热烈", `${answers.moodIntensity}%`); row("参考原因", answers.styleReferenceReason); await photos("主页风格参考", answers.styleReferencePhotos);
+      section("03 · 构图与道具"); row("人物画面占比", `${answers.subjectScale}%（环境 ${100 - answers.subjectScale}%）`); row("景别", answers.shots); row("道具或自带物品", answers.propNotes); await photos("道具相关图片", answers.propPhotos);
+      section("04 · 灵感与故事"); row("故事构想", answers.story); row("参考链接", answers.inspirationLinks); row("其他参考内容", answers.inspirationText); await photos("灵感图片", answers.inspirationPhotos);
+      section("05 · 选择原因与了解渠道"); row("选择原因", answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why); row("了解渠道", answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery); row("搜索关键词或补充", answers.discoveryDetail);
+      section("06 · 拍摄安排与授权"); row("天气偏好", answers.weather); row("天气变化时", answers.weatherPlan); row("拍摄助手", answers.assistant); row("照片公开范围", answers.publicity);
+      section("07 · 其他补充"); row("补充内容", answers.noSupplement ? "没有其他补充" : answers.supplement);
+      if (y + 100 > contentBottom) newPage(); y += 20; sheet.context.fillStyle = "#59685e"; sheet.context.font = `italic 24px Georgia, ${serif}`; sheet.context.fillText("Thank you for sharing your story.", margin, y); y += 40; sheet.context.fillStyle = "#6c756e"; sheet.context.font = `21px ${serif}`; sheet.context.fillText("请摄影师在拍摄前确认以上信息。", margin, y);
+      flushContentPage();
+      pdf.save(`${(answers.name || "客片").replace(/[\\/:*?"<>|]/g, "-")}_拍摄灵感档案.pdf`);
+    } catch (error) { console.error("PDF export failed", error); notify("PDF 生成遇到问题，请稍后再试"); } finally { setDownloading(false); }
   };
 
-  if (page === 0) return <main className="site-shell"><Atmosphere /><section className="questionnaire-card cover-card"><div className="cover">
-    <p className="eyebrow">PORTRAIT SESSION · BEFORE WE MEET</p>
-    <div className="cover-art" aria-hidden="true"><div className="cover-halo" /><div className="film-card film-card-back"><span>MEMORY</span></div><div className="film-card film-card-front"><b>光</b><small>LIGHT · PORTRAIT</small></div><i className="spark spark-a">✦</i><i className="spark spark-b">·</i></div>
-    <h1>在见面之前<br /><em>先认识此刻的你</em></h1>
-    <p className="lead">很高兴这次能为你拍照。拍摄前，我想先了解你现在的样子、喜欢的画面，以及希望被记录下来的感受。</p>
-    <p className="intro">这里没有标准答案，按直觉填写就好。大约需要 6–8 分钟，暂时不确定的内容可以先跳过，我们之后再一起确认。</p>
-    <button className="primary" type="button" onClick={() => setPage(1)}>开始填写</button>
-    <p className="privacy">所有照片与回答只在当前浏览器中整理，不会自动上传到服务器。填写完成后，请下载 PDF 并发送给摄影师。</p>
-  </div></section></main>;
+  const currentPortfolio = portfolioImages[portfolioIndex];
+  const sceneStyle = { "--scene-accent": currentPortfolio.accent, "--glass-tone": currentPortfolio.glassTone, "--glass-opacity": currentPortfolio.glassOpacity } as CSSProperties;
+  const motionClass = pageMotion === "idle" ? "" : `page-${pageMotion}`;
+  const alignmentClass = "form-align-right";
 
-  if (page === 8) { const incomplete = getMissingItems(); return <main className="site-shell result-shell"><Atmosphere /><section className="questionnaire-card result-page">
+  if (page === 0) return <main className="site-shell cover-shell" style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className="cover-stage">
+    <p className="cover-kicker">PORTRAIT SESSION · 2026</p>
+    <div className="cover-title"><h1>Before We Meet</h1><p>拍摄前风格与灵感问卷</p></div>
+    <div className="cover-entry"><p>约 6–8 分钟 · 跟随直觉填写</p><button className="cover-button" data-petal-count="26" type="button" onClick={beginQuestionnaire}><span>开始填写</span><i>↗</i></button></div>
+    <p className="cover-privacy">内容仅保存在当前设备 · 完成后可导出拍摄档案</p>
+    <div className="cover-count"><span>{String(portfolioIndex + 1).padStart(2, "0")}</span><i /><span>10</span><em>{currentPortfolio.title}</em></div>
+  </section><FilmRibbon active={portfolioIndex} onSelect={choosePortfolio} /></main>;
+
+  if (page === 8) { const incomplete = getMissingItems(); return <main className={`site-shell form-shell result-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className={`questionnaire-card result-page ${motionClass}`}>
     <div className="result-heading"><p className="eyebrow">PORTRAIT SESSION · FORM SUMMARY</p><h2>问卷填写完成</h2><p>{selectedSummary.people} · {selectedSummary.package}</p></div>
     <div className="result-document">
       <section><h3>01 · 基本信息</h3><ResultItem label="称呼">{selectedSummary.people}</ResultItem><ResultItem label="套餐">{answers.package}</ResultItem></section>
-      <section><h3>02 · 情绪与风格参考</h3><ResultItem label="自定义情绪">{answers.customFeeling}</ResultItem><ResultItem label="三组情绪滑块">忧郁—生命力 {answers.moodVitality}%　·　轻盈—沉重 {answers.moodWeight}%　·　克制—热烈 {answers.moodIntensity}%</ResultItem><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
+      <section><h3>02 · 情绪与风格参考</h3><ResultItem label="自定义情绪">{answers.customFeeling}</ResultItem><ResultItem label="三组情绪滑块">忧郁—生命力 {answers.moodVitality}% · 轻盈—沉重 {answers.moodWeight}% · 克制—热烈 {answers.moodIntensity}%</ResultItem><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
       <section><h3>03 · 构图与道具</h3><ResultItem label="人物画面占比">{answers.subjectScale}%</ResultItem><ResultItem label="景别"><Tags values={answers.shots} /></ResultItem><ResultItem label="道具或自带物品">{answers.propNotes}</ResultItem></section>
       <section><h3>04 · 灵感与故事</h3><ResultItem label="故事构想">{answers.story}</ResultItem><ResultItem label="其他参考">{answers.inspirationText}</ResultItem></section>
       <section><h3>05 · 选择原因与渠道</h3><ResultItem label="选择原因"><Tags values={answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why} /></ResultItem><ResultItem label="了解渠道"><Tags values={answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery} /></ResultItem></section>
@@ -259,13 +450,13 @@ export default function Home() {
       <section><h3>07 · 其他补充</h3><ResultItem label="补充内容">{answers.noSupplement ? "没有其他补充" : answers.supplement}</ResultItem></section>
     </div>
     {incomplete.length > 0 && <div className="incomplete-note"><b>还有 {incomplete.length} 项必答内容没有完成</b><span>你可以先查看档案，下载 PDF 前需要补充这些内容。</span></div>}
-    <div className="result-actions"><button className="primary" type="button" disabled={downloading} onClick={downloadPdf}>{downloading ? "正在整理故事…" : "下载 PDF 拍摄档案"}</button><button className="secondary" type="button" onClick={() => setPage(6)}>返回修改</button></div>
+    <div className="result-actions"><button className="primary" data-petal-count="11" type="button" disabled={downloading} onClick={downloadPdf}>{downloading ? "正在整理故事…" : "下载 PDF 拍摄档案"}</button><button className="secondary" data-petal-count="7" type="button" onClick={() => navigatePage(6, "back")}>返回修改</button></div>
     <p className="privacy">PDF 在当前设备本地生成。页面不会自动发送或保存你的回答。</p>
     {toast && <div className="toast">{toast}</div>}
     {missingItems.length > 0 && <div className="modal-backdrop" role="presentation"><section className="missing-modal" role="dialog" aria-modal="true" aria-labelledby="missing-title"><button className="modal-close" type="button" aria-label="关闭" onClick={() => setMissingItems([])}>×</button><p className="eyebrow">REQUIRED INFORMATION</p><h2 id="missing-title">还有 {missingItems.length} 项需要补充</h2><p>完成以下必答内容后，才能导出 PDF。点击任意一项可直接回到对应问题。</p><div className="missing-list">{missingItems.map((item) => <button key={item.id} type="button" onClick={() => jumpToMissing(item)}><span>{item.chapter} · {item.question}</span><small>{item.detail}</small><b>去填写 →</b></button>)}</div></section></div>}
   </section></main>; }
 
-  return <main className="site-shell"><Atmosphere /><section className="questionnaire-card form-card">
+  return <main className={`site-shell form-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className={`questionnaire-card form-card ${motionClass}`}>
     <header className="chapter-header"><div className="progress"><span>{String(page).padStart(2, "0")} / 07</span><span>{chapters[page - 1]}</span></div><div className="progress-line"><i style={{ width: `${page / 7 * 100}%` }} /></div><p className="eyebrow">CHAPTER {String(page).padStart(2, "0")}</p><h2>{chapters[page - 1]}</h2></header>
 
     {page === 1 && <>
@@ -337,11 +528,7 @@ export default function Home() {
       <button type="button" className={`no-supplement ${answers.noSupplement ? "selected" : ""}`} aria-pressed={answers.noSupplement} onClick={() => { set("noSupplement", !answers.noSupplement); if (!answers.noSupplement) set("supplement", ""); }}><span>{answers.noSupplement ? "✓" : "○"}</span>没有其他补充</button>
     </Question>}
 
-    <nav className="page-actions"><button className="secondary" type="button" onClick={previous}>返回</button><button className="primary" type="button" onClick={next}>{page === 7 ? "确认并生成档案" : "继续下一章"}</button></nav>
+    <nav className="page-actions"><button className="secondary" data-petal-count="7" type="button" onClick={previous}>返回</button><button className="primary" data-petal-count={page === 7 ? "11" : "8"} type="button" onClick={next}>{page === 7 ? "确认并生成档案" : "继续下一章"}</button></nav>
     {toast && <div className="toast" role="status">{toast}</div>}
   </section></main>;
-}
-
-function Atmosphere() {
-  return <><div className="mist mist-one" aria-hidden="true" /><div className="mist mist-two" aria-hidden="true" /><div className="stars" aria-hidden="true">✦　·　✧</div><div className="botanical botanical-left" aria-hidden="true">⌇</div><div className="botanical botanical-right" aria-hidden="true">⌇</div></>;
 }
