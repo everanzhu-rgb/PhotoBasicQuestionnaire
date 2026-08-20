@@ -76,8 +76,8 @@ function FilmRibbon({ active, onSelect }: { active: number; onSelect: (index: nu
     {ribbon.map((image, index) => {
       const imageIndex = index % portfolioImages.length;
       const duplicate = index >= portfolioImages.length;
-      return <button key={`${image.src}-${index}`} type="button" className={active === imageIndex ? "is-active" : ""} tabIndex={duplicate ? -1 : 0} aria-hidden={duplicate || undefined} aria-label={`查看作品 ${imageIndex + 1}：${image.cn}`} onClick={() => onSelect(imageIndex)}>
-        <img src={image.src} alt="" loading={imageIndex < 3 ? "eager" : "lazy"} /><span>{String(imageIndex + 1).padStart(2, "0")}</span><em>{image.title}</em>
+      return <button key={`${image.src}-${index}`} type="button" className={active === imageIndex ? "is-active" : ""} tabIndex={duplicate ? -1 : 0} aria-hidden={duplicate || undefined} aria-label={`查看作品：${image.cn}`} onClick={() => onSelect(imageIndex)}>
+        <img src={image.src} alt="" loading={imageIndex < 3 ? "eager" : "lazy"} /><em>{image.title}</em>
       </button>;
     })}
   </div></div>;
@@ -218,7 +218,7 @@ function PhotoUpload({ photos, onChange, max, label, required = false }: {
   return <div>
     <input ref={inputRef} className="file-input" type="file" accept="image/*" multiple onChange={addPhotos} />
     <button type="button" className="upload-zone" onClick={() => inputRef.current?.click()}>
-      <span className="upload-plus">＋</span><strong>{label}{required ? " · 必需" : ""}</strong><small>点击选择图片 · 最多 {max} 张 · 仅在本地预览</small>
+      <span className="upload-plus">＋</span><strong>{label}</strong><small>点击选择图片 · 最多 {max} 张 · 仅在本地预览</small>
     </button>
     {photos.length > 0 && <div className="photo-grid">{photos.map((photo) => <figure key={photo.id}>
       <img src={photo.url} alt={photo.name} />
@@ -288,7 +288,7 @@ export default function Home() {
     if (answers.lifePhotos.length < 1 || (isDouble && answers.secondLifePhotos.length < 1)) add("q2", 1, "Q2 近期生活照", isDouble ? "请分别上传两位拍摄者的生活照" : "请至少上传一张生活照");
     if (isDouble && (!answers.secondName || !answers.secondHeight)) add("q1-second", 1, "Q1 双人信息", "缺少：第二位拍摄者的称呼或身高");
     if (!answers.moodVitalityTouched || !answers.moodWeightTouched || !answers.moodIntensityTouched) add("q3", 2, "Q3 情绪基调", "请分别调整三组情绪滑块");
-    if (!answers.styleReferencePhotos.length || !answers.styleReferenceReason.trim()) add("q4", 2, "Q4 既往作品参考", "请上传一张主页作品截图并说明参考原因");
+    if (!answers.styleReferencePhotos.length || !answers.styleReferenceReason.trim()) add("q4", 2, "Q4 既往作品参考", "请至少上传一张主页作品截图并说明参考原因");
     if (!answers.subjectScaleTouched || !answers.shots.length) add("q7", 3, "Q7 人物占比偏好", "请调整人物占比并选择景别偏好");
     if (!answers.weather) add("q13", 6, "Q13 偏好的拍摄天气", "请选择一项天气偏好");
     if (!answers.weatherPlan) add("q14", 6, "Q14 天气变化时的处理偏好", "请选择一项处理偏好");
@@ -435,9 +435,9 @@ export default function Home() {
   if (page === 0) return <main className="site-shell cover-shell" style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className="cover-stage">
     <p className="cover-kicker">PORTRAIT SESSION · 2026</p>
     <div className="cover-title"><h1>Before We Meet</h1><p>拍摄前风格与灵感问卷</p></div>
-    <div className="cover-entry"><p>约 6–8 分钟 · 跟随直觉填写</p><button className="cover-button" data-petal-count="26" type="button" onClick={beginQuestionnaire}><span>开始填写</span><i>↗</i></button></div>
+    <div className="cover-entry"><p>约 6–8 分钟 · 跟随直觉填写</p><button className="cover-button" data-petal-count="26" type="button" onClick={beginQuestionnaire}><span>开始填写</span><i aria-hidden="true" /></button></div>
     <p className="cover-privacy">内容仅保存在当前设备 · 完成后可导出拍摄档案</p>
-    <div className="cover-count"><span>{String(portfolioIndex + 1).padStart(2, "0")}</span><i /><span>10</span><em>{currentPortfolio.title}</em></div>
+    <div className="cover-count"><em>{currentPortfolio.title}</em></div>
   </section><FilmRibbon active={portfolioIndex} onSelect={choosePortfolio} /></main>;
 
   if (page === 8) { const incomplete = getMissingItems(); return <main className={`site-shell form-shell result-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className={`questionnaire-card result-page ${motionClass}`}>
@@ -479,8 +479,8 @@ export default function Home() {
         <label className="custom-field"><span>还有其他想补充的情绪吗？</span><input value={answers.customFeeling} onChange={(event) => set("customFeeling", event.target.value)} placeholder="例如：潮湿、清醒、游离……" /></label>
         {answers.customFeeling.trim() && <div className="custom-preview"><span>{answers.customFeeling.trim()}</span><button type="button" aria-label="删除自定义情绪" onClick={() => set("customFeeling", "")}>×</button></div>}
       </Question>
-      <Question id="q4" number="04" title="这次拍摄，你希望参考我哪一组既往作品的感觉？" required helper="请从我的小红书主页中选择一张最接近你预期的照片，并上传截图作为参考。">
-        <PhotoUpload photos={answers.styleReferencePhotos} onChange={(v) => set("styleReferencePhotos", v)} max={1} required label="上传一张主页作品截图" />
+      <Question id="q4" number="04" title="这次拍摄，你希望参考我哪些既往作品的感觉？" required helper="请从我的小红书主页中选择最接近你预期的照片，并上传截图作为参考。">
+        <PhotoUpload photos={answers.styleReferencePhotos} onChange={(v) => set("styleReferencePhotos", v)} max={6} required label="上传主页作品截图" />
         <label className="textarea-field"><span>希望参考这张作品中的哪些部分？</span><textarea value={answers.styleReferenceReason} onChange={(event) => set("styleReferenceReason", event.target.value)} rows={5} placeholder="可以从人物状态、光线、色彩、构图、场景或整体氛围进行说明。请告诉我，希望在本次拍摄中保留或适度复现其中的哪些特点。" /></label>
       </Question>
     </>}
@@ -493,13 +493,13 @@ export default function Home() {
       <Question number="08" title="拍摄道具或自带物品" optional helper="如果暂时没有明确想法，可以从下面这些方向获得一些灵感，再按自己的方式填写。">
         <div className="prompt-list" aria-label="填写提示">{propPrompts.map((item) => <span key={item}>{item}</span>)}</div>
         <label className="textarea-field"><span>内容说明</span><textarea value={answers.propNotes} onChange={(e) => set("propNotes", e.target.value)} rows={6} placeholder="例如：准备携带一本旧书和一条白色丝巾；希望在部分照片中使用，但不需要贯穿整组拍摄。" /></label>
-        <PhotoUpload photos={answers.propPhotos} onChange={(v) => set("propPhotos", v)} max={6} label="上传相关图片（可选）" />
+        <PhotoUpload photos={answers.propPhotos} onChange={(v) => set("propPhotos", v)} max={6} label="上传相关图片" />
       </Question>
     </>}
 
     {page === 4 && <>
       <Question number="09" title="其他参考内容" optional helper="如果还有电影、书籍、音乐、文字或社交媒体内容可供参考，可以在这里补充。">
-        <PhotoUpload photos={answers.inspirationPhotos} onChange={(v) => set("inspirationPhotos", v)} max={8} label="上传灵感图片（可选）" />
+        <PhotoUpload photos={answers.inspirationPhotos} onChange={(v) => set("inspirationPhotos", v)} max={8} label="上传灵感图片" />
         <label className="textarea-field"><span>参考链接 · 每行一个</span><textarea value={answers.inspirationLinks} onChange={(e) => set("inspirationLinks", e.target.value)} rows={3} placeholder="粘贴小红书、B站、电影页面或其他链接……" /></label>
         <label className="textarea-field"><span>作品名称或补充说明</span><textarea value={answers.inspirationText} onChange={(e) => set("inspirationText", e.target.value)} rows={4} placeholder="请说明希望参考的内容，以及其中值得注意的元素。" /></label>
       </Question>
@@ -522,7 +522,7 @@ export default function Home() {
       <Question id="q13" number="13" title="偏好的拍摄天气" required><ChoiceGroup options={["阳光明亮 · 有明显光影", "柔和晴天 · 光线不太强", "阴天安静 · 低饱和", "小雨或雾气 · 更有电影感", "没有特别偏好"]} value={answers.weather} onChange={(v) => set("weather", v as string)} /></Question>
       <Question id="q14" number="14" title="天气变化时的处理偏好" required helper="最终是否改期会结合天气安全、场地条件和双方时间共同确认。"><ChoiceGroup options={["普通阴天也可以 · 不同天气有不同表达", "阴天可以 · 明显下雨希望协商改期", "比较期待阳光 · 无阳光希望协商改期", "由摄影师根据主题、光线和安全情况判断"]} value={answers.weatherPlan} onChange={(v) => set("weatherPlan", v as string)} /></Question>
       <Question id="q15" number="15" title="拍摄助手" required helper="拍摄当天可能有一位助手同行，协助使用吹风机、泡泡机、反光板以及记录花絮。助手可能为异性，不产生额外费用。"><ChoiceGroup options={["可以接受", "不希望有其他助手同行"]} value={answers.assistant} onChange={(v) => set("assistant", v as string)} /></Question>
-      <Question id="q16" number="16" title="照片公开授权" required helper="是否授权不会影响本次拍摄和交付。"><ChoiceGroup options={["同意公开发布露脸照片，用于摄影作品展示及社交媒体", "不同意任何公开发布"]} value={answers.publicity} onChange={(v) => set("publicity", v as string)} /></Question>
+      <Question id="q16" number="16" title="照片公开授权" required helper="是否授权不会影响本次拍摄和交付。"><ChoiceGroup options={["同意公开至摄影作品展示", "不同意任何公开发布"]} value={answers.publicity} onChange={(v) => set("publicity", v as string)} /></Question>
     </>}
 
     {page === 7 && <Question number="17" title="还有其他需要我提前了解的内容吗？" optional helper="可以补充身体活动限制、对镜头的担心、希望避开的内容、照片用途，或任何前面没有覆盖的信息。">
