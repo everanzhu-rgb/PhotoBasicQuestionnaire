@@ -394,7 +394,6 @@ export default function Home() {
     if (basicMissing) add("q1", 1, "Q1 基本信息", `缺少：${basicMissing}`);
     if (answers.lifePhotos.length < 1 || (isDouble && answers.secondLifePhotos.length < 1)) add("q2", 1, "Q2 近期生活照", isDouble ? "请分别上传两位拍摄者的生活照" : "请至少上传一张生活照");
     if (isDouble && (!answers.secondName || !answers.secondHeight)) add("q1-second", 1, "Q1 双人信息", "缺少：第二位拍摄者的称呼或身高");
-    if (!answers.moodVitalityTouched || !answers.moodWeightTouched || !answers.moodIntensityTouched) add("q3", 2, "Q3 情绪基调", "请分别调整三组情绪滑块");
     if (!answers.styleReferencePhotos.length || !answers.styleReferenceReason.trim()) add("q4", 2, "Q4 既往作品参考", "请至少上传一张主页作品截图并说明参考原因");
     if (!answers.subjectScaleTouched || !answers.shots.length) add("q7", 3, "Q7 人物占比偏好", "请调整人物占比并选择景别偏好");
     if (!answers.weather) add("q13", 6, "Q13 偏好的拍摄天气", "请选择一项天气偏好");
@@ -580,7 +579,7 @@ export default function Home() {
     </>}
 
     {page === 2 && <>
-      <Question id="q3" number="03" title="情绪基调" required helper="请根据直觉调整以下三组感受。停在中间表示两侧相对平衡，不需要刻意选择某一个极端。">
+      <Question id="q3" number="03" title="情绪基调" optional helper="请根据直觉调整以下三组感受。停在中间表示两侧相对平衡，不需要刻意选择某一个极端。">
         <div className="scale-stack"><BipolarScale left="忧郁" right="生命力" value={answers.moodVitality} onChange={(v) => set("moodVitality", v)} onInteract={() => set("moodVitalityTouched", true)} /><BipolarScale left="轻盈" right="沉重" value={answers.moodWeight} onChange={(v) => set("moodWeight", v)} onInteract={() => set("moodWeightTouched", true)} /><BipolarScale left="克制" right="热烈" value={answers.moodIntensity} onChange={(v) => set("moodIntensity", v)} onInteract={() => set("moodIntensityTouched", true)} /></div>
         <FeelingTagInput values={answers.customFeeling} onChange={(values) => set("customFeeling", values)} />
       </Question>

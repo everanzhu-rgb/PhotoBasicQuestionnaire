@@ -48,10 +48,10 @@ h2 { margin:0 0 12px;font-size:clamp(30px,5vw,42px);font-weight:500;line-height:
 h3 { margin:0 0 8px;font-size:20px;line-height:1.6;font-weight:600; }
 h4 { margin:24px 0 6px;font-size:14px;font-weight:600; }
 .helper { margin:0 0 16px;color:var(--muted);font-size:12px;line-height:1.8; }
-.reference-link { width:23px;height:23px;margin-left:7px;display:inline-grid;place-items:center;vertical-align:-7px;border:1px solid rgba(80,101,84,.24);border-radius:50%;color:var(--forest);background:rgba(255,255,255,.38);transition:transform .2s ease,border-color .2s ease,background .2s ease; }
-.reference-link:hover,.reference-link:focus-visible { transform:translate(1px,-1px);border-color:var(--forest);background:rgba(255,255,255,.72);outline:none; }
-.reference-link i { width:8px;height:8px;position:relative;display:block;border-top:1px solid currentColor;border-right:1px solid currentColor;transform:translate(-1px,1px); }
-.reference-link i::after { content:"";position:absolute;width:9px;height:1px;right:-1px;top:3px;background:currentColor;transform:rotate(-45deg);transform-origin:right center; }
+.reference-link { width:25px;height:25px;margin-left:7px;display:inline-grid;place-items:center;vertical-align:-8px;border:1px solid rgba(255,255,255,.5);border-radius:50%;color:#eee9df;background:#273028;box-shadow:inset 0 1px 0 rgba(255,255,255,.18);transition:transform .2s ease,background .2s ease; }
+.reference-link:hover,.reference-link:focus-visible { transform:translateY(-1px);background:#171b16;outline:none; }
+.reference-link i { width:12px;height:1px;position:relative;display:block;background:currentColor;transform:translateX(-1px); }
+.reference-link i::after { content:"";position:absolute;width:5px;height:5px;right:0;top:50%;border-top:1px solid currentColor;border-right:1px solid currentColor;transform:translateY(-50%) rotate(45deg); }
 .field-row { display:grid;grid-template-columns:1.25fr .75fr;gap:14px;margin-top:18px; }
 .field>span,.textarea-field>span { display:block;margin:0 0 8px;font-size:12px;color:var(--muted); }
 .input-wrap { position:relative; }
