@@ -8,7 +8,7 @@ type MissingItem = { id: string; page: number; chapter: string; question: string
 type Answers = {
   name: string; height: string; package: string; secondName: string; secondHeight: string;
   lifePhotos: Photo[]; secondLifePhotos: Photo[];
-  customFeeling: string;
+  customFeeling: string[];
   moodVitality: number; moodWeight: number; moodIntensity: number;
   moodVitalityTouched: boolean; moodWeightTouched: boolean; moodIntensityTouched: boolean;
   styleReferencePhotos: Photo[]; styleReferenceReason: string;
@@ -24,7 +24,7 @@ type Answers = {
 
 const initialAnswers: Answers = {
   name: "", height: "", package: "", secondName: "", secondHeight: "",
-  lifePhotos: [], secondLifePhotos: [], customFeeling: "",
+  lifePhotos: [], secondLifePhotos: [], customFeeling: [],
   moodVitality: 50, moodWeight: 50, moodIntensity: 50,
   moodVitalityTouched: false, moodWeightTouched: false, moodIntensityTouched: false,
   styleReferencePhotos: [], styleReferenceReason: "", subjectScale: 50, subjectScaleTouched: false, shots: [],
@@ -147,16 +147,19 @@ function updateMulti(current: string[], value: string, max?: number) {
   return [...current, value];
 }
 
-function ChoiceGroup({ options, value, onChange, multiple = false, max, ordered = false, compact = false, glow = false }: {
+function ChoiceGroup({ options, value, onChange, multiple = false, max, exclusive, ordered = false, compact = false, glow = false }: {
   options: string[]; value: string | string[]; onChange: (value: string | string[]) => void;
-  multiple?: boolean; max?: number; ordered?: boolean; compact?: boolean; glow?: boolean;
+  multiple?: boolean; max?: number; exclusive?: string; ordered?: boolean; compact?: boolean; glow?: boolean;
 }) {
   const values = Array.isArray(value) ? value : value ? [value] : [];
   return <div className={`choice-grid ${compact ? "compact" : ""}`}>
     {options.map((option) => {
       const selected = values.includes(option);
       const rank = ordered && selected ? values.indexOf(option) + 1 : null;
+      const conflictsWithExclusive = Boolean(exclusive && !selected && (option === exclusive ? values.some((item) => item !== exclusive) : values.includes(exclusive)));
+      const reachedLimit = Boolean(multiple && max && !selected && values.length >= max);
       return <button key={option} type="button" className={`choice ${glow ? "mood-choice" : ""} ${selected ? "selected" : ""}`}
+        disabled={conflictsWithExclusive || reachedLimit}
         aria-pressed={selected}
         onClick={() => onChange(multiple ? updateMulti(values, option, max) : option)}>
         {rank && <b className="rank">{rank}</b>}<span>{option}</span>
@@ -181,23 +184,67 @@ function CompositionScale({ value, onChange, onInteract }: { value: number; onCh
   const [boundary, setBoundary] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const update = (raw: string) => {
-    onInteract(); const next = Number(raw); const clamped = Math.min(75, Math.max(25, next)); onChange(clamped);
-    if (next < 25 || next > 75) {
-      setBoundary(next < 25 ? "人物不能太小哦" : "人物不能太大哦");
+    onInteract(); const next = Number(raw); const clamped = Math.min(85, Math.max(15, next)); onChange(clamped);
+    if (next < 15 || next > 85) {
+      setBoundary(next < 15 ? "人物占比最低为 15%" : "人物占比最高为 85%");
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setBoundary(""), 1500);
     }
   };
   return <div className={`composition-scale ${boundary ? "at-boundary" : ""}`}>
-    <div className="range-labels subject-labels"><span>环境 · 0%</span><b>{value}%</b><span>人物 · 100%</span></div>
+    <div className="range-labels subject-labels"><span>人物 · 15%</span><b>{value}%</b><span>人物 · 85%</span></div>
     <div className="range-stage">
-      <input className={`range subject-range ${active ? "is-dragging" : ""}`} aria-label="人物在画面中的占比" type="range" min="0" max="100" value={value}
+      <input className={`range subject-range ${active ? "is-dragging" : ""}`} aria-label="人物在画面中的占比" type="range" min="15" max="85" value={value}
         style={{ background: `linear-gradient(90deg,#718d79 0%,#bad2bf ${value}%,#e6dfd5 ${value}%,#886e68 100%)` }}
         onPointerDown={() => { setActive(true); onInteract(); }} onPointerUp={() => setActive(false)} onBlur={() => setActive(false)} onChange={(event) => update(event.target.value)} />
       {boundary && <span className="boundary-tip" role="status">{boundary}</span>}
     </div>
     <div className="range-value">人物约占画面 {value}%，环境约占画面 {100 - value}%</div>
   </div>;
+}
+
+function FeelingTagInput({ values, onChange }: { values: string[]; onChange: (values: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const composing = useRef(false);
+  const commit = (raw = draft) => {
+    const additions = raw.split(/[\s,，、]+/).map((item) => item.trim()).filter(Boolean);
+    if (additions.length) onChange(Array.from(new Set([...values, ...additions])));
+    setDraft("");
+  };
+  return <div className="feeling-tag-input">
+    <label className="custom-field"><span>还有其他想补充的情绪吗？</span><input value={draft}
+      onCompositionStart={() => { composing.current = true; }}
+      onCompositionEnd={(event) => { composing.current = false; if (/\s/.test(event.currentTarget.value)) commit(event.currentTarget.value); }}
+      onChange={(event) => { const next = event.target.value; if (!composing.current && /\s/.test(next)) commit(next); else setDraft(next); }}
+      onKeyDown={(event) => { if (!composing.current && (event.key === "Enter" || event.key === "Tab" || event.key === " ")) { event.preventDefault(); commit(); } }}
+      onBlur={() => commit()}
+      placeholder="输入一个词后按空格、回车或 Tab" /></label>
+    {values.length > 0 && <div className="custom-preview-list">{values.map((value) => <div className="custom-preview" key={value}><span>{value}</span><button type="button" aria-label={`删除自定义情绪 ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}>×</button></div>)}</div>}
+  </div>;
+}
+
+function AmbientAudio() {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(true);
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = .28;
+    const start = () => audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    void start();
+    const unlock = (event: PointerEvent) => { if ((event.target as Element | null)?.closest(".music-toggle")) return; if (audio.paused) void start(); };
+    window.addEventListener("pointerdown", unlock, { once: true, passive: true });
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    else { audio.pause(); setPlaying(false); }
+  };
+  return <><audio ref={audioRef} autoPlay loop playsInline preload="auto"><source src="/audio/clair-de-lune.mp3" type="audio/mpeg" /><source src="/audio/clair-de-lune.ogg" type="audio/ogg" /></audio>
+    <button className={`music-toggle ${playing ? "is-playing" : "is-muted"}`} data-petal-count="2" type="button" onClick={toggle} aria-label={playing ? "静音背景音乐" : "播放背景音乐"} title={playing ? "静音 Clair de Lune" : "播放 Clair de Lune"}><i aria-hidden="true" /></button>
+  </>;
 }
 
 function PhotoUpload({ photos, onChange, max, label, required = false }: {
@@ -227,7 +274,7 @@ function PhotoUpload({ photos, onChange, max, label, required = false }: {
   </div>;
 }
 
-function Question({ id, number, title, helper, required, optional, children }: { id?: string; number: string; title: string; helper?: string; required?: boolean; optional?: boolean; children: ReactNode }) {
+function Question({ id, number, title, helper, required, optional, children }: { id?: string; number: string; title: string; helper?: ReactNode; required?: boolean; optional?: boolean; children: ReactNode }) {
   return <article id={id} className="question-block">
     <div className="question-top"><span className="question-no">{number}</span>{required ? <span className="required">需要回答</span> : optional ? <span className="optional">选填</span> : null}</div>
     <h3>{title}</h3>{helper && <p className="helper">{helper}</p>}{children}
@@ -432,33 +479,32 @@ export default function Home() {
   const motionClass = pageMotion === "idle" ? "" : `page-${pageMotion}`;
   const alignmentClass = "form-align-right";
 
-  if (page === 0) return <main className="site-shell cover-shell" style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className="cover-stage">
-    <p className="cover-kicker">PORTRAIT SESSION · 2026</p>
+  if (page === 0) return <main className="site-shell cover-shell" style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><AmbientAudio /><section className="cover-stage">
     <div className="cover-title"><h1>Before We Meet</h1><p>拍摄前风格与灵感问卷</p></div>
     <div className="cover-entry"><p>约 6–8 分钟 · 跟随直觉填写</p><button className="cover-button" data-petal-count="26" type="button" onClick={beginQuestionnaire}><span>开始填写</span><i aria-hidden="true" /></button></div>
-    <p className="cover-privacy">内容仅保存在当前设备 · 完成后可导出拍摄档案</p>
+    <p className="cover-privacy">为保护您的隐私，填写时的数据仅保存在当前设备，最终完成后可导出拍摄档案</p>
     <div className="cover-count"><em>{currentPortfolio.title}</em></div>
   </section><FilmRibbon active={portfolioIndex} onSelect={choosePortfolio} /></main>;
 
-  if (page === 8) { const incomplete = getMissingItems(); return <main className={`site-shell form-shell result-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className={`questionnaire-card result-page ${motionClass}`}>
+  if (page === 8) { const incomplete = getMissingItems(); return <main className={`site-shell form-shell result-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><AmbientAudio /><section className={`questionnaire-card result-page ${motionClass}`}>
     <div className="result-heading"><p className="eyebrow">PORTRAIT SESSION · FORM SUMMARY</p><h2>问卷填写完成</h2><p>{selectedSummary.people} · {selectedSummary.package}</p></div>
     <div className="result-document">
       <section><h3>01 · 基本信息</h3><ResultItem label="称呼">{selectedSummary.people}</ResultItem><ResultItem label="套餐">{answers.package}</ResultItem></section>
-      <section><h3>02 · 情绪与风格参考</h3><ResultItem label="自定义情绪">{answers.customFeeling}</ResultItem><ResultItem label="三组情绪滑块">忧郁—生命力 {answers.moodVitality}% · 轻盈—沉重 {answers.moodWeight}% · 克制—热烈 {answers.moodIntensity}%</ResultItem><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
+      <section><h3>02 · 情绪与风格参考</h3><ResultItem label="自定义情绪"><Tags values={answers.customFeeling} /></ResultItem><ResultItem label="三组情绪滑块">忧郁—生命力 {answers.moodVitality}% · 轻盈—沉重 {answers.moodWeight}% · 克制—热烈 {answers.moodIntensity}%</ResultItem><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
       <section><h3>03 · 构图与道具</h3><ResultItem label="人物画面占比">{answers.subjectScale}%</ResultItem><ResultItem label="景别"><Tags values={answers.shots} /></ResultItem><ResultItem label="道具或自带物品">{answers.propNotes}</ResultItem></section>
       <section><h3>04 · 灵感与故事</h3><ResultItem label="故事构想">{answers.story}</ResultItem><ResultItem label="其他参考">{answers.inspirationText}</ResultItem></section>
       <section><h3>05 · 选择原因与渠道</h3><ResultItem label="选择原因"><Tags values={answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why} /></ResultItem><ResultItem label="了解渠道"><Tags values={answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery} /></ResultItem></section>
       <section><h3>06 · 拍摄安排与授权</h3><ResultItem label="天气">{answers.weather}</ResultItem><ResultItem label="拍摄助手">{answers.assistant}</ResultItem><ResultItem label="公开范围">{answers.publicity}</ResultItem></section>
       <section><h3>07 · 其他补充</h3><ResultItem label="补充内容">{answers.noSupplement ? "没有其他补充" : answers.supplement}</ResultItem></section>
     </div>
-    {incomplete.length > 0 && <div className="incomplete-note"><b>还有 {incomplete.length} 项必答内容没有完成</b><span>你可以先查看档案，下载 PDF 前需要补充这些内容。</span></div>}
+    {incomplete.length > 0 && <div className="incomplete-note"><b>还有 {incomplete.length} 项必答内容没有完成</b><span>您可以点击下载 PDF，查看下载前需要补充这些内容。</span></div>}
     <div className="result-actions"><button className="primary" data-petal-count="11" type="button" disabled={downloading} onClick={downloadPdf}>{downloading ? "正在整理故事…" : "下载 PDF 拍摄档案"}</button><button className="secondary" data-petal-count="7" type="button" onClick={() => navigatePage(6, "back")}>返回修改</button></div>
-    <p className="privacy">PDF 在当前设备本地生成。页面不会自动发送或保存你的回答。</p>
+    <p className="privacy">PDF 在当前设备本地生成。页面不会自动发送或保存您的回答。</p>
     {toast && <div className="toast">{toast}</div>}
     {missingItems.length > 0 && <div className="modal-backdrop" role="presentation"><section className="missing-modal" role="dialog" aria-modal="true" aria-labelledby="missing-title"><button className="modal-close" type="button" aria-label="关闭" onClick={() => setMissingItems([])}>×</button><p className="eyebrow">REQUIRED INFORMATION</p><h2 id="missing-title">还有 {missingItems.length} 项需要补充</h2><p>完成以下必答内容后，才能导出 PDF。点击任意一项可直接回到对应问题。</p><div className="missing-list">{missingItems.map((item) => <button key={item.id} type="button" onClick={() => jumpToMissing(item)}><span>{item.chapter} · {item.question}</span><small>{item.detail}</small><b>去填写 →</b></button>)}</div></section></div>}
   </section></main>; }
 
-  return <main className={`site-shell form-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><section className={`questionnaire-card form-card ${motionClass}`}>
+  return <main className={`site-shell form-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><AmbientAudio /><section className={`questionnaire-card form-card ${motionClass}`}>
     <header className="chapter-header"><div className="progress"><span>{String(page).padStart(2, "0")} / 07</span><span>{chapters[page - 1]}</span></div><div className="progress-line"><i style={{ width: `${page / 7 * 100}%` }} /></div><p className="eyebrow">CHAPTER {String(page).padStart(2, "0")}</p><h2>{chapters[page - 1]}</h2></header>
 
     {page === 1 && <>
@@ -476,10 +522,9 @@ export default function Home() {
     {page === 2 && <>
       <Question id="q3" number="03" title="情绪基调" required helper="请根据直觉调整以下三组感受。停在中间表示两侧相对平衡，不需要刻意选择某一个极端。">
         <div className="scale-stack"><BipolarScale left="忧郁" right="生命力" value={answers.moodVitality} onChange={(v) => set("moodVitality", v)} onInteract={() => set("moodVitalityTouched", true)} /><BipolarScale left="轻盈" right="沉重" value={answers.moodWeight} onChange={(v) => set("moodWeight", v)} onInteract={() => set("moodWeightTouched", true)} /><BipolarScale left="克制" right="热烈" value={answers.moodIntensity} onChange={(v) => set("moodIntensity", v)} onInteract={() => set("moodIntensityTouched", true)} /></div>
-        <label className="custom-field"><span>还有其他想补充的情绪吗？</span><input value={answers.customFeeling} onChange={(event) => set("customFeeling", event.target.value)} placeholder="例如：潮湿、清醒、游离……" /></label>
-        {answers.customFeeling.trim() && <div className="custom-preview"><span>{answers.customFeeling.trim()}</span><button type="button" aria-label="删除自定义情绪" onClick={() => set("customFeeling", "")}>×</button></div>}
+        <FeelingTagInput values={answers.customFeeling} onChange={(values) => set("customFeeling", values)} />
       </Question>
-      <Question id="q4" number="04" title="这次拍摄，你希望参考我哪些既往作品的感觉？" required helper="请从我的小红书主页中选择最接近你预期的照片，并上传截图作为参考。">
+      <Question id="q4" number="04" title="这次拍摄，您希望参考我哪些既往作品的感觉？" required helper={<>请从我的小红书主页中选择最接近您预期的照片，并上传截图作为参考。<a className="reference-link" href="https://www.xiaohongshu.com/user/profile/6427c8ae0000000012011b86?xsec_token=ABlynNcfdmoYkwZT_ZRnoRGekrMnsvjyTlaTlOowh4pU0%3D&xsec_source=pc_search" target="_blank" rel="noopener noreferrer" aria-label="在新标签页打开摄影师的小红书主页" title="打开小红书主页"><i aria-hidden="true" /></a></>}>
         <PhotoUpload photos={answers.styleReferencePhotos} onChange={(v) => set("styleReferencePhotos", v)} max={6} required label="上传主页作品截图" />
         <label className="textarea-field"><span>希望参考这张作品中的哪些部分？</span><textarea value={answers.styleReferenceReason} onChange={(event) => set("styleReferenceReason", event.target.value)} rows={5} placeholder="可以从人物状态、光线、色彩、构图、场景或整体氛围进行说明。请告诉我，希望在本次拍摄中保留或适度复现其中的哪些特点。" /></label>
       </Question>
@@ -488,9 +533,9 @@ export default function Home() {
     {page === 3 && <>
       <Question id="q7" number="07" title="人物占比偏好" required helper="调整人物在画面中的大致占比。数值越低，环境所占比例越高；数值越高，人物越突出。">
         <CompositionScale value={answers.subjectScale} onChange={(v) => set("subjectScale", v)} onInteract={() => set("subjectScaleTouched", true)} />
-        <h4>景别偏好</h4><ChoiceGroup compact options={["面部或局部特写", "半身", "全身", "人物与环境的大景", "没有特别偏好"]} value={answers.shots} onChange={(v) => set("shots", v as string[])} multiple max={3} />
+        <h4>景别偏好</h4><ChoiceGroup compact options={["面部或局部特写", "半身", "全身", "人物与环境的大景", "没有特别偏好"]} value={answers.shots} onChange={(v) => set("shots", v as string[])} multiple max={2} exclusive="没有特别偏好" />
       </Question>
-      <Question number="08" title="拍摄道具或自带物品" optional helper="如果暂时没有明确想法，可以从下面这些方向获得一些灵感，再按自己的方式填写。">
+      <Question number="08" title="拍摄道具或自带物品" optional helper="该题为选填，用于告诉我您想出现的元素，如果暂时没想好也可以选择不填，则代表希望摄影师自由根据主题来准备与策划。">
         <div className="prompt-list" aria-label="填写提示">{propPrompts.map((item) => <span key={item}>{item}</span>)}</div>
         <label className="textarea-field"><span>内容说明</span><textarea value={answers.propNotes} onChange={(e) => set("propNotes", e.target.value)} rows={6} placeholder="例如：准备携带一本旧书和一条白色丝巾；希望在部分照片中使用，但不需要贯穿整组拍摄。" /></label>
         <PhotoUpload photos={answers.propPhotos} onChange={(v) => set("propPhotos", v)} max={6} label="上传相关图片" />
@@ -503,16 +548,16 @@ export default function Home() {
         <label className="textarea-field"><span>参考链接 · 每行一个</span><textarea value={answers.inspirationLinks} onChange={(e) => set("inspirationLinks", e.target.value)} rows={3} placeholder="粘贴小红书、B站、电影页面或其他链接……" /></label>
         <label className="textarea-field"><span>作品名称或补充说明</span><textarea value={answers.inspirationText} onChange={(e) => set("inspirationText", e.target.value)} rows={4} placeholder="请说明希望参考的内容，以及其中值得注意的元素。" /></label>
       </Question>
-      <Question number="10" title="为这次约拍构造一个故事" optional helper={isDouble ? "每一次创作都可以从一个简单的故事设定开始。你可以设定你们之间的关系，以及希望表现的相处状态，例如《花与爱丽丝》中亲密、自然又带有复杂情绪的友谊。无需写完整剧本，人物关系、地点、事件或几个关键词都可以。" : "每一次创作都可以从一个简单的故事设定开始。你可以想象自己以怎样的身份进入画面，例如《呼啸山庄》中带有疏离感和生命力的人物，也可以只是某个在旅途中短暂停留的人。无需写完整剧本，人物身份、地点、事件或几个关键词都可以。"}>
+      <Question number="10" title="为这次约拍构造一个故事" optional helper={isDouble ? "每一次创作都可以从一个简单的故事设定开始。您可以设定您与同行者之间的关系，以及希望表现的相处状态，例如《花与爱丽丝》中亲密、自然又带有复杂情绪的友谊。无需写完整剧本，人物关系、地点、事件或几个关键词都可以。" : "每一次创作都可以从一个简单的故事设定开始。您可以想象自己以怎样的身份进入画面，例如《呼啸山庄》中带有疏离感和生命力的人物，也可以只是某个在旅途中短暂停留的人。无需写完整剧本，人物身份、地点、事件或几个关键词都可以。"}>
         <label className="textarea-field"><span>故事设定</span><textarea value={answers.story} onChange={(e) => set("story", e.target.value)} rows={7} placeholder={isDouble ? "例如：两位多年未见的朋友在夏末重逢，一起沿河散步。" : "例如：一个人结束一段旅程，在傍晚的树林中短暂停留。"} /></label>
       </Question>
     </>}
 
     {page === 5 && <>
-      <Question number="11" title="你选择我的主要原因" optional helper="这道题不会影响拍摄安排，但对我很重要。你的回答会帮助我了解大家最关注的内容，并用于后续改善作品呈现和服务方式。最多选择三个。"><ChoiceGroup options={whyOptions} value={answers.why} onChange={(v) => set("why", v as string[])} multiple max={3} />
+      <Question number="11" title="您选择我的主要原因" optional helper="这道题不会影响拍摄安排，但对我很重要。您的回答会帮助我了解大家最关注的内容，并用于后续改善作品呈现和服务方式。最多选择三个。"><ChoiceGroup options={whyOptions} value={answers.why} onChange={(v) => set("why", v as string[])} multiple max={3} />
         {answers.why.includes("其他") && <label className="custom-field conditional-field"><span>其他原因</span><input value={answers.whyOther} onChange={(event) => set("whyOther", event.target.value)} placeholder="请填写具体原因" /></label>}
       </Question>
-      <Question number="12" title="你是在哪里了解到我的？" optional helper="这道题不会影响拍摄安排，但对我很重要。你的回答会帮助我了解大家通常通过什么渠道找到我，以便后续优化内容和服务。可多选。"><ChoiceGroup options={discoveryOptions} value={answers.discovery} onChange={(v) => set("discovery", v as string[])} multiple />
+      <Question number="12" title="您是在哪里了解到我的？" optional helper="这道题不会影响拍摄安排，但对我很重要。您的回答会帮助我了解大家通常通过什么渠道找到我，以便后续优化内容和服务。可多选。"><ChoiceGroup options={discoveryOptions} value={answers.discovery} onChange={(v) => set("discovery", v as string[])} multiple />
         {answers.discovery.includes("其他") && <label className="custom-field conditional-field"><span>其他渠道</span><input value={answers.discoveryOther} onChange={(event) => set("discoveryOther", event.target.value)} placeholder="请填写具体渠道" /></label>}
         <label className="textarea-field"><span>搜索关键词或补充说明</span><textarea value={answers.discoveryDetail} onChange={(e) => set("discoveryDetail", e.target.value)} rows={3} placeholder="如果通过搜索找到，可以填写当时使用的关键词。" /></label>
       </Question>

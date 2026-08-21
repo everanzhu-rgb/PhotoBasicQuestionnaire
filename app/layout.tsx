@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Before We Meet · 拍摄前风格与灵感问卷",
-  description: "在光影与作品之间，记录你期待被拍摄的方式。",
+  description: "在光影与作品之间，记录您期待被拍摄的方式。",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
