@@ -186,15 +186,15 @@ function CompositionScale({ value, onChange, onInteract }: { value: number; onCh
   const update = (raw: string) => {
     onInteract(); const next = Number(raw); const clamped = Math.min(85, Math.max(15, next)); onChange(clamped);
     if (next < 15 || next > 85) {
-      setBoundary(next < 15 ? "人物占比最低为 15%" : "人物占比最高为 85%");
+      setBoundary(next < 15 ? "人不能太小哦" : "人不能太大哦");
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setBoundary(""), 1500);
     }
   };
   return <div className={`composition-scale ${boundary ? "at-boundary" : ""}`}>
-    <div className="range-labels subject-labels"><span>人物 · 15%</span><b>{value}%</b><span>人物 · 85%</span></div>
+    <div className="range-labels subject-labels"><span>环境</span><b>{value}%</b><span>人物</span></div>
     <div className="range-stage">
-      <input className={`range subject-range ${active ? "is-dragging" : ""}`} aria-label="人物在画面中的占比" type="range" min="15" max="85" value={value}
+      <input className={`range subject-range ${active ? "is-dragging" : ""}`} aria-label="人物在画面中的占比" type="range" min="0" max="100" value={value}
         style={{ background: `linear-gradient(90deg,#718d79 0%,#bad2bf ${value}%,#e6dfd5 ${value}%,#886e68 100%)` }}
         onPointerDown={() => { setActive(true); onInteract(); }} onPointerUp={() => setActive(false)} onBlur={() => setActive(false)} onChange={(event) => update(event.target.value)} />
       {boundary && <span className="boundary-tip" role="status">{boundary}</span>}
@@ -218,44 +218,103 @@ function FeelingTagInput({ values, onChange }: { values: string[]; onChange: (va
       onChange={(event) => { const next = event.target.value; if (!composing.current && /\s/.test(next)) commit(next); else setDraft(next); }}
       onKeyDown={(event) => { if (!composing.current && (event.key === "Enter" || event.key === "Tab" || event.key === " ")) { event.preventDefault(); commit(); } }}
       onBlur={() => commit()}
-      placeholder="输入一个词后按空格、回车或 Tab" /></label>
+      placeholder="例如：清冷感、潮湿感、疏离感……" /></label>
     {values.length > 0 && <div className="custom-preview-list">{values.map((value) => <div className="custom-preview" key={value}><span>{value}</span><button type="button" aria-label={`删除自定义情绪 ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}>×</button></div>)}</div>}
   </div>;
 }
 
+let ambientAudio: HTMLAudioElement | null = null;
+let ambientWantsPlayback = true;
+
 function AmbientAudio() {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(ambientWantsPlayback);
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    if (!ambientAudio) {
+      ambientAudio = new Audio("/audio/clair-de-lune.mp3");
+      ambientAudio.loop = true;
+      ambientAudio.preload = "auto";
+      ambientAudio.setAttribute("playsinline", "");
+    }
+    const audio = ambientAudio;
     audio.volume = .28;
-    const start = () => audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    let mounted = true;
+    const sync = () => { if (mounted) setPlaying(!audio.paused); };
+    const detachUnlock = () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("touchstart", unlock);
+      window.removeEventListener("click", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+    const start = async () => {
+      if (!ambientWantsPlayback) return;
+      try { await audio.play(); sync(); detachUnlock(); } catch { if (mounted) setPlaying(true); }
+    };
+    const unlock = (event: Event) => {
+      if ((event.target as Element | null)?.closest?.(".music-toggle")) return;
+      void start();
+    };
+    audio.addEventListener("play", sync); audio.addEventListener("pause", sync);
+    window.addEventListener("pointerdown", unlock, { passive: true });
+    window.addEventListener("touchstart", unlock, { passive: true });
+    window.addEventListener("click", unlock);
+    window.addEventListener("keydown", unlock);
     void start();
-    const unlock = (event: PointerEvent) => { if ((event.target as Element | null)?.closest(".music-toggle")) return; if (audio.paused) void start(); };
-    window.addEventListener("pointerdown", unlock, { once: true, passive: true });
-    return () => window.removeEventListener("pointerdown", unlock);
+    return () => { mounted = false; audio.removeEventListener("play", sync); audio.removeEventListener("pause", sync); detachUnlock(); };
   }, []);
   const toggle = () => {
-    const audio = audioRef.current;
+    const audio = ambientAudio;
     if (!audio) return;
-    if (audio.paused) void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-    else { audio.pause(); setPlaying(false); }
+    if (audio.paused) { ambientWantsPlayback = true; void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
+    else { ambientWantsPlayback = false; audio.pause(); setPlaying(false); }
   };
-  return <><audio ref={audioRef} autoPlay loop playsInline preload="auto"><source src="/audio/clair-de-lune.mp3" type="audio/mpeg" /><source src="/audio/clair-de-lune.ogg" type="audio/ogg" /></audio>
-    <button className={`music-toggle ${playing ? "is-playing" : "is-muted"}`} data-petal-count="2" type="button" onClick={toggle} aria-label={playing ? "静音背景音乐" : "播放背景音乐"} title={playing ? "静音 Clair de Lune" : "播放 Clair de Lune"}><i aria-hidden="true" /></button>
-  </>;
+  return <button className={`music-toggle ${playing ? "is-playing" : "is-muted"}`} data-petal-count="2" type="button" onClick={toggle} aria-label={playing ? "静音背景音乐" : "播放背景音乐"} title={playing ? "静音 Clair de Lune" : "播放 Clair de Lune"}><i aria-hidden="true" /></button>;
+}
+
+const createPhotoId = () => typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+  ? crypto.randomUUID()
+  : `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+async function prepareMobilePhoto(file: File): Promise<Photo> {
+  const originalUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element); element.onerror = reject; element.src = originalUrl;
+    });
+    const maxEdge = 2000;
+    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
+    if (scale === 1 && file.size < 5_000_000) return { id: createPhotoId(), name: file.name, url: originalUrl };
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return { id: createPhotoId(), name: file.name, url: originalUrl };
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", .84));
+    if (!blob) return { id: createPhotoId(), name: file.name, url: originalUrl };
+    URL.revokeObjectURL(originalUrl);
+    return { id: createPhotoId(), name: file.name.replace(/\.[^.]+$/, ".jpg"), url: URL.createObjectURL(blob) };
+  } catch {
+    return { id: createPhotoId(), name: file.name, url: originalUrl };
+  }
 }
 
 function PhotoUpload({ photos, onChange, max, label, required = false }: {
   photos: Photo[]; onChange: (photos: Photo[]) => void; max: number; label: string; required?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const addPhotos = (event: ChangeEvent<HTMLInputElement>) => {
+  const [processing, setProcessing] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const addPhotos = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []).slice(0, Math.max(0, max - photos.length));
-    const next = files.map((file) => ({ id: crypto.randomUUID(), name: file.name, url: URL.createObjectURL(file) }));
-    onChange([...photos, ...next]);
     event.target.value = "";
+    if (!files.length) return;
+    setProcessing(true); setUploadError("");
+    const settled = await Promise.allSettled(files.map(prepareMobilePhoto));
+    const next = settled.flatMap((item) => item.status === "fulfilled" ? [item.value] : []);
+    if (next.length) onChange([...photos, ...next]);
+    if (next.length < files.length) setUploadError("部分图片读取失败，请重新选择或先保存为 JPG 后上传");
+    setProcessing(false);
   };
   const remove = (id: string) => {
     const target = photos.find((photo) => photo.id === id);
@@ -264,9 +323,10 @@ function PhotoUpload({ photos, onChange, max, label, required = false }: {
   };
   return <div>
     <input ref={inputRef} className="file-input" type="file" accept="image/*" multiple onChange={addPhotos} />
-    <button type="button" className="upload-zone" onClick={() => inputRef.current?.click()}>
-      <span className="upload-plus">＋</span><strong>{label}</strong><small>点击选择图片 · 最多 {max} 张 · 仅在本地预览</small>
+    <button type="button" className="upload-zone" disabled={processing || photos.length >= max} onClick={() => inputRef.current?.click()}>
+      <span className="upload-plus">＋</span><strong>{processing ? "正在处理图片…" : label}</strong><small>点击选择图片 · 最多 {max} 张 · 仅在本地预览</small>
     </button>
+    {uploadError && <p className="upload-error" role="status">{uploadError}</p>}
     {photos.length > 0 && <div className="photo-grid">{photos.map((photo) => <figure key={photo.id}>
       <img src={photo.url} alt={photo.name} />
       <button type="button" aria-label={`移除 ${photo.name}`} onClick={() => remove(photo.id)}>×</button>
