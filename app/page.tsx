@@ -705,7 +705,7 @@ export default function Home() {
       <Question id="q13" number="13" title="偏好的拍摄天气" required><ChoiceGroup options={["阳光明亮 · 有明显光影", "柔和晴天 · 光线不太强", "阴天安静 · 低饱和", "小雨或雾气 · 更有电影感", "没有特别偏好"]} value={answers.weather} onChange={(v) => set("weather", v as string)} /></Question>
       <Question id="q14" number="14" title="天气变化时的处理偏好" required helper="最终是否改期会结合天气安全、场地条件和双方时间共同确认。"><ChoiceGroup options={["普通阴天也可以 · 不同天气有不同表达", "阴天可以 · 明显下雨希望协商改期", "比较期待阳光 · 无阳光希望协商改期", "由摄影师根据主题、光线和安全情况判断"]} value={answers.weatherPlan} onChange={(v) => set("weatherPlan", v as string)} /></Question>
       <Question id="q15" number="15" title="拍摄助手" required helper="拍摄当天可能有一位助手同行，协助使用吹风机、泡泡机、反光板以及记录花絮。助手可能为异性，不产生额外费用。"><ChoiceGroup options={["可以接受", "不希望有其他助手同行"]} value={answers.assistant} onChange={(v) => set("assistant", v as string)} /></Question>
-      <Question id="q16" number="16" title="照片公开授权" required helper="是否授权不会影响本次拍摄和交付。"><ChoiceGroup options={["同意公开至摄影作品展示", "不同意任何公开发布"]} value={answers.publicity} onChange={(v) => set("publicity", v as string)} /></Question>
+      <Question id="q16" number="16" title="照片公开授权" required helper="您的授权是对我莫大的支持和鼓励，是否授权不会影响本次拍摄与交付"><ChoiceGroup options={["同意公开至摄影作品展示（可返现30元）", "不同意任何公开发布"]} value={answers.publicity} onChange={(v) => set("publicity", v as string)} /></Question>
     </>}
 
     {page === 7 && <Question number="17" title="还有其他需要我提前了解的内容吗？" optional helper="可以补充身体活动限制、对镜头的担心、希望避开的内容、照片用途，或任何前面没有覆盖的信息。">
