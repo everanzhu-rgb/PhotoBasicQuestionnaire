@@ -274,29 +274,10 @@ const createPhotoId = () => typeof crypto !== "undefined" && typeof crypto.rando
   ? crypto.randomUUID()
   : `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-async function prepareMobilePhoto(file: File): Promise<Photo> {
-  const originalUrl = URL.createObjectURL(file);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image();
-      element.onload = () => resolve(element); element.onerror = reject; element.src = originalUrl;
-    });
-    const maxEdge = 2000;
-    const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth, image.naturalHeight));
-    if (scale === 1 && file.size < 5_000_000) return { id: createPhotoId(), name: file.name, url: originalUrl };
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    const context = canvas.getContext("2d");
-    if (!context) return { id: createPhotoId(), name: file.name, url: originalUrl };
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", .84));
-    if (!blob) return { id: createPhotoId(), name: file.name, url: originalUrl };
-    URL.revokeObjectURL(originalUrl);
-    return { id: createPhotoId(), name: file.name.replace(/\.[^.]+$/, ".jpg"), url: URL.createObjectURL(blob) };
-  } catch {
-    return { id: createPhotoId(), name: file.name, url: originalUrl };
-  }
+async function prepareOriginalPhoto(file: File): Promise<Photo> {
+  const extensionLooksLikeImage = /\.(avif|heic|heif|jpe?g|png|webp)$/i.test(file.name);
+  if (!file.type.startsWith("image/") && !extensionLooksLikeImage) throw new Error("Unsupported image type");
+  return { id: createPhotoId(), name: file.name, url: URL.createObjectURL(file) };
 }
 
 function PhotoUpload({ photos, onChange, max, label, required = false }: {
@@ -310,7 +291,7 @@ function PhotoUpload({ photos, onChange, max, label, required = false }: {
     event.target.value = "";
     if (!files.length) return;
     setProcessing(true); setUploadError("");
-    const settled = await Promise.allSettled(files.map(prepareMobilePhoto));
+    const settled = await Promise.allSettled(files.map(prepareOriginalPhoto));
     const next = settled.flatMap((item) => item.status === "fulfilled" ? [item.value] : []);
     if (next.length) onChange([...photos, ...next]);
     if (next.length < files.length) setUploadError("部分图片读取失败，请重新选择或先保存为 JPG 后上传");
@@ -363,6 +344,9 @@ export default function Home() {
   const [downloading, setDownloading] = useState(false);
   const [missingItems, setMissingItems] = useState<MissingItem[]>([]);
   const isDouble = answers.package.startsWith("双人");
+  const isBasic = answers.package.includes("基础");
+  const visiblePages = isBasic ? [1, 2, 3, 5, 6, 7] : [1, 2, 3, 4, 5, 6, 7];
+  const visiblePageIndex = Math.max(0, visiblePages.indexOf(page));
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) => setAnswers((old) => ({ ...old, [key]: value }));
   const choosePortfolio = (nextIndex: number) => {
     if (nextIndex === portfolioIndex) return;
@@ -394,8 +378,8 @@ export default function Home() {
     if (basicMissing) add("q1", 1, "Q1 基本信息", `缺少：${basicMissing}`);
     if (answers.lifePhotos.length < 1 || (isDouble && answers.secondLifePhotos.length < 1)) add("q2", 1, "Q2 近期生活照", isDouble ? "请分别上传两位拍摄者的生活照" : "请至少上传一张生活照");
     if (isDouble && (!answers.secondName || !answers.secondHeight)) add("q1-second", 1, "Q1 双人信息", "缺少：第二位拍摄者的称呼或身高");
-    if (!answers.styleReferencePhotos.length || !answers.styleReferenceReason.trim()) add("q4", 2, "Q4 既往作品参考", "请至少上传一张主页作品截图并说明参考原因");
-    if (!answers.subjectScaleTouched || !answers.shots.length) add("q7", 3, "Q7 人物占比偏好", "请调整人物占比并选择景别偏好");
+    if (isBasic && (!answers.styleReferencePhotos.length || !answers.styleReferenceReason.trim())) add("q4", 2, "Q4 既往作品参考", "请至少上传一张主页作品截图并说明参考原因");
+    if (!isBasic && (!answers.subjectScaleTouched || !answers.shots.length)) add("q7", 3, "Q7 人物占比偏好", "请调整人物占比并选择景别偏好");
     if (!answers.weather) add("q13", 6, "Q13 偏好的拍摄天气", "请选择一项天气偏好");
     if (!answers.weatherPlan) add("q14", 6, "Q14 天气变化时的处理偏好", "请选择一项处理偏好");
     if (!answers.assistant) add("q15", 6, "Q15 拍摄助手", "请选择是否接受拍摄助手");
@@ -409,8 +393,8 @@ export default function Home() {
     window.setTimeout(() => { setPage(target); setPageMotion(`${direction}-in`); window.scrollTo({ top: 0 }); }, 360);
     window.setTimeout(() => setPageMotion("idle"), 900);
   };
-  const next = () => navigatePage(Math.min(8, page + 1), "forward");
-  const previous = () => navigatePage(Math.max(0, page - 1), "back");
+  const next = () => navigatePage(visiblePages[visiblePageIndex + 1] ?? 8, "forward");
+  const previous = () => navigatePage(visiblePages[visiblePageIndex - 1] ?? 0, "back");
   const jumpToMissing = (item: MissingItem) => {
     setMissingItems([]); setPage(item.page); setPageMotion("back-in");
     window.setTimeout(() => {
@@ -475,7 +459,7 @@ export default function Home() {
         sheet.context.strokeStyle = "rgba(255,255,255,.88)"; sheet.context.lineWidth = 3; sheet.context.beginPath(); sheet.context.roundRect(58, 62, width - 116, height - 124, 38); sheet.context.stroke();
         sheet.context.strokeStyle = "rgba(52,68,59,.13)"; sheet.context.lineWidth = 1; sheet.context.beginPath(); sheet.context.roundRect(64, 68, width - 128, height - 136, 34); sheet.context.stroke();
         sheet.context.fillStyle = "#48574f"; sheet.context.font = "16px Arial"; sheet.context.letterSpacing = "4px"; sheet.context.fillText("PORTRAIT SESSION · INSPIRATION NOTES", margin, 132);
-        sheet.context.fillStyle = "#59655f"; sheet.context.font = "16px Arial"; sheet.context.fillText(`PAGE ${String(index).padStart(2, "0")}`, width - margin - 72, 132);
+        sheet.context.fillStyle = "#435148"; sheet.context.font = "16px Arial"; sheet.context.fillText(`PAGE ${String(index).padStart(2, "0")}`, width - margin - 72, 132);
         sheet.context.strokeStyle = "rgba(46,62,53,.22)"; sheet.context.beginPath(); sheet.context.moveTo(margin, 168); sheet.context.lineTo(width - margin, 168); sheet.context.stroke();
       };
       const flushContentPage = () => { pdf.addPage([width, height], "portrait"); pdf.addImage(sheet.canvas.toDataURL("image/jpeg", .9), "JPEG", 0, 0, width, height, undefined, "FAST"); };
@@ -495,39 +479,58 @@ export default function Home() {
         const content = Array.isArray(value) ? (value.length ? value.join(" · ") : "未填写") : value || "未填写";
         let lines = wrap(content, width - margin * 2, 26);
         if (y + 76 > contentBottom) newPage();
-        sheet.context.fillStyle = "#7e857e"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(label, margin, y); y += 34;
+        sheet.context.fillStyle = "#56645b"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(label, margin, y); y += 34;
         while (lines.length) {
-          if (y + 44 > contentBottom) { newPage(); sheet.context.fillStyle = "#8a908a"; sheet.context.font = `17px ${serif}`; sheet.context.fillText(`${label} · 续`, margin, y); y += 34; }
+          if (y + 44 > contentBottom) { newPage(); sheet.context.fillStyle = "#5b675f"; sheet.context.font = `17px ${serif}`; sheet.context.fillText(`${label} · 续`, margin, y); y += 34; }
           const line = lines.shift()!; sheet.context.fillStyle = "#303a33"; sheet.context.font = `26px ${serif}`; sheet.context.fillText(line, margin, y); y += 41;
         }
         y += 20;
       };
       const photos = async (label: string, items: Photo[]) => {
         if (!items.length) { row(label, "未上传"); return; }
-        if (y + 300 > contentBottom) newPage();
-        sheet.context.fillStyle = "#7e857e"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(label, margin, y); y += 30;
-        const cellWidth = 321, cellHeight = 228, gap = 26;
+        if (y + 260 > contentBottom) newPage();
+        const drawPhotoLabel = (continued = false) => {
+          sheet.context.fillStyle = "#56645b"; sheet.context.font = `19px ${serif}`;
+          sheet.context.fillText(continued ? `${label} · 续` : label, margin, y); y += 34;
+        };
+        drawPhotoLabel();
+        const maxPhotoWidth = width - margin * 2;
+        const maxPhotoHeight = 640;
+        const framePadding = 10;
         for (let index = 0; index < items.length; index++) {
-          if (index > 0 && index % 3 === 0) y += cellHeight + 28;
-          if (y + cellHeight > contentBottom) { newPage(); sheet.context.fillStyle = "#7e857e"; sheet.context.font = `19px ${serif}`; sheet.context.fillText(`${label} · 续`, margin, y); y += 30; }
-          const x = margin + (index % 3) * (cellWidth + gap);
-          sheet.context.fillStyle = "rgba(38,46,40,.92)"; sheet.context.beginPath(); sheet.context.roundRect(x, y, cellWidth, cellHeight, 12); sheet.context.fill();
           try {
-            const image = await loadImage(items[index].url); const ratio = Math.min((cellWidth - 12) / image.width, (cellHeight - 12) / image.height);
+            const image = await loadImage(items[index].url);
+            const ratio = Math.min(maxPhotoWidth / image.width, maxPhotoHeight / image.height);
             const drawWidth = image.width * ratio, drawHeight = image.height * ratio;
-            sheet.context.drawImage(image, x + (cellWidth - drawWidth) / 2, y + (cellHeight - drawHeight) / 2, drawWidth, drawHeight);
-          } catch { sheet.context.fillStyle = "#d9d4ca"; sheet.context.font = `18px ${serif}`; sheet.context.fillText("图片读取失败", x + 84, y + 122); }
+            if (y + drawHeight + framePadding * 2 > contentBottom) { newPage(); drawPhotoLabel(true); }
+            const x = (width - drawWidth) / 2;
+            sheet.context.fillStyle = "rgba(37,47,40,.88)"; sheet.context.beginPath(); sheet.context.roundRect(x - framePadding, y - framePadding, drawWidth + framePadding * 2, drawHeight + framePadding * 2, 14); sheet.context.fill();
+            sheet.context.drawImage(image, x, y, drawWidth, drawHeight);
+            sheet.context.strokeStyle = "rgba(255,255,255,.72)"; sheet.context.lineWidth = 2; sheet.context.strokeRect(x, y, drawWidth, drawHeight);
+            y += drawHeight + 42;
+          } catch {
+            if (y + 90 > contentBottom) { newPage(); drawPhotoLabel(true); }
+            sheet.context.fillStyle = "#4f5d54"; sheet.context.font = `18px ${serif}`; sheet.context.fillText("图片读取失败", margin, y + 34); y += 82;
+          }
         }
-        y += cellHeight + 42;
+        y += 16;
       };
-      section("01 · 基本信息"); row("拍摄者", selectedSummary.people); row("身高", isDouble ? `${answers.height} cm · ${answers.secondHeight} cm` : `${answers.height} cm`); row("套餐", answers.package); await photos("近期生活照", [...answers.lifePhotos, ...answers.secondLifePhotos]);
-      section("02 · 情绪与风格参考"); row("自定义情绪", answers.customFeeling); row("忧郁—生命力", `${answers.moodVitality}%`); row("轻盈—沉重", `${answers.moodWeight}%`); row("克制—热烈", `${answers.moodIntensity}%`); row("参考原因", answers.styleReferenceReason); await photos("主页风格参考", answers.styleReferencePhotos);
-      section("03 · 构图与道具"); row("人物画面占比", `${answers.subjectScale}%（环境 ${100 - answers.subjectScale}%）`); row("景别", answers.shots); row("道具或自带物品", answers.propNotes); await photos("道具相关图片", answers.propPhotos);
-      section("04 · 灵感与故事"); row("故事构想", answers.story); row("参考链接", answers.inspirationLinks); row("其他参考内容", answers.inspirationText); await photos("灵感图片", answers.inspirationPhotos);
-      section("05 · 选择原因与了解渠道"); row("选择原因", answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why); row("了解渠道", answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery); row("搜索关键词或补充", answers.discoveryDetail);
-      section("06 · 拍摄安排与授权"); row("天气偏好", answers.weather); row("天气变化时", answers.weatherPlan); row("拍摄助手", answers.assistant); row("照片公开范围", answers.publicity);
-      section("07 · 其他补充"); row("补充内容", answers.noSupplement ? "没有其他补充" : answers.supplement);
-      if (y + 100 > contentBottom) newPage(); y += 20; sheet.context.fillStyle = "#59685e"; sheet.context.font = `italic 24px Georgia, ${serif}`; sheet.context.fillText("Thank you for sharing your story.", margin, y); y += 40; sheet.context.fillStyle = "#6c756e"; sheet.context.font = `21px ${serif}`; sheet.context.fillText("请摄影师在拍摄前确认以上信息。", margin, y);
+      section("01 · 基本信息"); row("拍摄者", selectedSummary.people); row("身高", isDouble ? `${answers.height} cm · ${answers.secondHeight} cm` : `${answers.height} cm`); row("套餐", answers.package); await photos("近期生活照", [...answers.lifePhotos, ...(isDouble ? answers.secondLifePhotos : [])]);
+      if (isBasic) {
+        section("02 · 既往作品参考"); row("参考原因", answers.styleReferenceReason); await photos("主页风格参考", answers.styleReferencePhotos);
+        section("03 · 自带道具"); row("额外想自带的道具", answers.propNotes); await photos("道具相关图片", answers.propPhotos);
+        section("04 · 选择原因与了解渠道"); row("选择原因", answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why); row("了解渠道", answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery); row("搜索关键词或补充", answers.discoveryDetail);
+        section("05 · 拍摄安排与授权"); row("天气偏好", answers.weather); row("天气变化时", answers.weatherPlan); row("拍摄助手", answers.assistant); row("照片公开范围", answers.publicity);
+        section("06 · 其他补充"); row("补充内容", answers.noSupplement ? "没有其他补充" : answers.supplement);
+      } else {
+        section("02 · 情绪与风格参考"); row("自定义情绪", answers.customFeeling); row("忧郁—生命力", `${answers.moodVitality}%`); row("轻盈—沉重", `${answers.moodWeight}%`); row("克制—热烈", `${answers.moodIntensity}%`); row("参考原因", answers.styleReferenceReason); await photos("主页风格参考", answers.styleReferencePhotos);
+        section("03 · 构图与道具"); row("人物画面占比", `${answers.subjectScale}%（环境 ${100 - answers.subjectScale}%）`); row("景别", answers.shots); row("道具或自带物品", answers.propNotes); await photos("道具相关图片", answers.propPhotos);
+        section("04 · 灵感与故事"); row("故事构想", answers.story); row("参考链接", answers.inspirationLinks); row("其他参考内容", answers.inspirationText); await photos("灵感图片", answers.inspirationPhotos);
+        section("05 · 选择原因与了解渠道"); row("选择原因", answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why); row("了解渠道", answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery); row("搜索关键词或补充", answers.discoveryDetail);
+        section("06 · 拍摄安排与授权"); row("天气偏好", answers.weather); row("天气变化时", answers.weatherPlan); row("拍摄助手", answers.assistant); row("照片公开范围", answers.publicity);
+        section("07 · 其他补充"); row("补充内容", answers.noSupplement ? "没有其他补充" : answers.supplement);
+      }
+      if (y + 100 > contentBottom) newPage(); y += 20; sheet.context.fillStyle = "#435248"; sheet.context.font = `italic 24px Georgia, ${serif}`; sheet.context.fillText("Thank you for sharing your story.", margin, y); y += 40; sheet.context.fillStyle = "#4f5c54"; sheet.context.font = `21px ${serif}`; sheet.context.fillText("请摄影师在拍摄前确认以上信息。", margin, y);
       flushContentPage();
       pdf.save(`${(answers.name || "客片").replace(/[\\/:*?"<>|]/g, "-")}_拍摄灵感档案.pdf`);
     } catch (error) { console.error("PDF export failed", error); notify("PDF 生成遇到问题，请稍后再试"); } finally { setDownloading(false); }
@@ -549,12 +552,20 @@ export default function Home() {
     <div className="result-heading"><p className="eyebrow">PORTRAIT SESSION · FORM SUMMARY</p><h2>问卷填写完成</h2><p>{selectedSummary.people} · {selectedSummary.package}</p></div>
     <div className="result-document">
       <section><h3>01 · 基本信息</h3><ResultItem label="称呼">{selectedSummary.people}</ResultItem><ResultItem label="套餐">{answers.package}</ResultItem></section>
-      <section><h3>02 · 情绪与风格参考</h3><ResultItem label="自定义情绪"><Tags values={answers.customFeeling} /></ResultItem><ResultItem label="三组情绪滑块">忧郁—生命力 {answers.moodVitality}% · 轻盈—沉重 {answers.moodWeight}% · 克制—热烈 {answers.moodIntensity}%</ResultItem><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
-      <section><h3>03 · 构图与道具</h3><ResultItem label="人物画面占比">{answers.subjectScale}%</ResultItem><ResultItem label="景别"><Tags values={answers.shots} /></ResultItem><ResultItem label="道具或自带物品">{answers.propNotes}</ResultItem></section>
-      <section><h3>04 · 灵感与故事</h3><ResultItem label="故事构想">{answers.story}</ResultItem><ResultItem label="其他参考">{answers.inspirationText}</ResultItem></section>
-      <section><h3>05 · 选择原因与渠道</h3><ResultItem label="选择原因"><Tags values={answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why} /></ResultItem><ResultItem label="了解渠道"><Tags values={answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery} /></ResultItem></section>
-      <section><h3>06 · 拍摄安排与授权</h3><ResultItem label="天气">{answers.weather}</ResultItem><ResultItem label="拍摄助手">{answers.assistant}</ResultItem><ResultItem label="公开范围">{answers.publicity}</ResultItem></section>
-      <section><h3>07 · 其他补充</h3><ResultItem label="补充内容">{answers.noSupplement ? "没有其他补充" : answers.supplement}</ResultItem></section>
+      {isBasic ? <>
+        <section><h3>02 · 既往作品参考</h3><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
+        <section><h3>03 · 自带道具</h3><ResultItem label="额外想自带的道具">{answers.propNotes}</ResultItem></section>
+        <section><h3>04 · 选择原因与渠道</h3><ResultItem label="选择原因"><Tags values={answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why} /></ResultItem><ResultItem label="了解渠道"><Tags values={answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery} /></ResultItem></section>
+        <section><h3>05 · 拍摄安排与授权</h3><ResultItem label="天气">{answers.weather}</ResultItem><ResultItem label="拍摄助手">{answers.assistant}</ResultItem><ResultItem label="公开范围">{answers.publicity}</ResultItem></section>
+        <section><h3>06 · 其他补充</h3><ResultItem label="补充内容">{answers.noSupplement ? "没有其他补充" : answers.supplement}</ResultItem></section>
+      </> : <>
+        <section><h3>02 · 情绪与风格参考</h3><ResultItem label="自定义情绪"><Tags values={answers.customFeeling} /></ResultItem><ResultItem label="三组情绪滑块">忧郁—生命力 {answers.moodVitality}% · 轻盈—沉重 {answers.moodWeight}% · 克制—热烈 {answers.moodIntensity}%</ResultItem><ResultItem label="风格参考原因">{answers.styleReferenceReason}</ResultItem></section>
+        <section><h3>03 · 构图与道具</h3><ResultItem label="人物画面占比">{answers.subjectScale}%</ResultItem><ResultItem label="景别"><Tags values={answers.shots} /></ResultItem><ResultItem label="道具或自带物品">{answers.propNotes}</ResultItem></section>
+        <section><h3>04 · 灵感与故事</h3><ResultItem label="故事构想">{answers.story}</ResultItem><ResultItem label="其他参考">{answers.inspirationText}</ResultItem></section>
+        <section><h3>05 · 选择原因与渠道</h3><ResultItem label="选择原因"><Tags values={answers.why.includes("其他") ? [...answers.why.filter((item) => item !== "其他"), answers.whyOther].filter(Boolean) : answers.why} /></ResultItem><ResultItem label="了解渠道"><Tags values={answers.discovery.includes("其他") ? [...answers.discovery.filter((item) => item !== "其他"), answers.discoveryOther].filter(Boolean) : answers.discovery} /></ResultItem></section>
+        <section><h3>06 · 拍摄安排与授权</h3><ResultItem label="天气">{answers.weather}</ResultItem><ResultItem label="拍摄助手">{answers.assistant}</ResultItem><ResultItem label="公开范围">{answers.publicity}</ResultItem></section>
+        <section><h3>07 · 其他补充</h3><ResultItem label="补充内容">{answers.noSupplement ? "没有其他补充" : answers.supplement}</ResultItem></section>
+      </>}
     </div>
     {incomplete.length > 0 && <div className="incomplete-note"><b>还有 {incomplete.length} 项必答内容没有完成</b><span>您可以点击下载 PDF，查看下载前需要补充这些内容。</span></div>}
     <div className="result-actions"><button className="primary" data-petal-count="11" type="button" disabled={downloading} onClick={downloadPdf}>{downloading ? "正在整理故事…" : "下载 PDF 拍摄档案"}</button><button className="secondary" data-petal-count="7" type="button" onClick={() => navigatePage(6, "back")}>返回修改</button></div>
@@ -564,12 +575,12 @@ export default function Home() {
   </section></main>; }
 
   return <main className={`site-shell form-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><AmbientAudio /><section className={`questionnaire-card form-card ${motionClass}`}>
-    <header className="chapter-header"><div className="progress"><span>{String(page).padStart(2, "0")} / 07</span><span>{chapters[page - 1]}</span></div><div className="progress-line"><i style={{ width: `${page / 7 * 100}%` }} /></div><p className="eyebrow">CHAPTER {String(page).padStart(2, "0")}</p><h2>{chapters[page - 1]}</h2></header>
+    <header className="chapter-header"><div className="progress"><span>{String(visiblePageIndex + 1).padStart(2, "0")} / {String(visiblePages.length).padStart(2, "0")}</span><span>{chapters[page - 1]}</span></div><div className="progress-line"><i style={{ width: `${(visiblePageIndex + 1) / visiblePages.length * 100}%` }} /></div><p className="eyebrow">CHAPTER {String(visiblePageIndex + 1).padStart(2, "0")}</p><h2>{chapters[page - 1]}</h2></header>
 
     {page === 1 && <>
       <Question id="q1" number="01" title="基本信息" required>
         <div className="field-row"><Field label="称呼 / 昵称" value={answers.name} onChange={(v) => set("name", v)} placeholder="例如：小夏" /><Field label="身高" value={answers.height} onChange={(v) => set("height", v)} placeholder="165" type="number" suffix="cm" /></div>
-        <h4>本次所选套餐</h4><ChoiceGroup options={["单人 · ¥499", "单人 · ¥799", "双人 · ¥699", "双人 · ¥899"]} value={answers.package} onChange={(v) => set("package", v as string)} />
+        <h4>本次所选套餐</h4><ChoiceGroup options={["单人基础 · ¥499", "单人定制 · ¥799", "双人基础 · ¥699", "双人定制 · ¥899"]} value={answers.package} onChange={(v) => set("package", v as string)} />
       </Question>
       {isDouble && <Question id="q1-second" number="01 · A" title="第二位拍摄者的信息" required><div className="field-row"><Field label="第二位的称呼 / 昵称" value={answers.secondName} onChange={(v) => set("secondName", v)} /><Field label="第二位的身高" value={answers.secondHeight} onChange={(v) => set("secondHeight", v)} type="number" suffix="cm" /></div></Question>}
       <Question id="q2" number="02" title="近期生活照" required helper="请提供能够看清当前面部状态、发型和发色的照片。不需要专门拍摄或精修，以便我进行针对性策划。">
@@ -579,29 +590,29 @@ export default function Home() {
     </>}
 
     {page === 2 && <>
-      <Question id="q3" number="03" title="情绪基调" optional helper="请根据直觉调整以下三组感受。停在中间表示两侧相对平衡，不需要刻意选择某一个极端。">
+      {!isBasic && <Question id="q3" number="03" title="情绪基调" optional helper="请根据直觉调整以下三组感受。停在中间表示两侧相对平衡，不需要刻意选择某一个极端。">
         <div className="scale-stack"><BipolarScale left="忧郁" right="生命力" value={answers.moodVitality} onChange={(v) => set("moodVitality", v)} onInteract={() => set("moodVitalityTouched", true)} /><BipolarScale left="轻盈" right="沉重" value={answers.moodWeight} onChange={(v) => set("moodWeight", v)} onInteract={() => set("moodWeightTouched", true)} /><BipolarScale left="克制" right="热烈" value={answers.moodIntensity} onChange={(v) => set("moodIntensity", v)} onInteract={() => set("moodIntensityTouched", true)} /></div>
         <FeelingTagInput values={answers.customFeeling} onChange={(values) => set("customFeeling", values)} />
-      </Question>
-      <Question id="q4" number="04" title="这次拍摄，您希望参考我哪些既往作品的感觉？" required helper={<>请从我的小红书主页中选择最接近您预期的照片，并上传截图作为参考。<a className="reference-link" href="https://www.xiaohongshu.com/user/profile/6427c8ae0000000012011b86?xsec_token=ABlynNcfdmoYkwZT_ZRnoRGekrMnsvjyTlaTlOowh4pU0%3D&xsec_source=pc_search" target="_blank" rel="noopener noreferrer" aria-label="在新标签页打开摄影师的小红书主页" title="打开小红书主页"><i aria-hidden="true" /></a></>}>
-        <PhotoUpload photos={answers.styleReferencePhotos} onChange={(v) => set("styleReferencePhotos", v)} max={6} required label="上传主页作品截图" />
+      </Question>}
+      <Question id="q4" number="04" title={isBasic ? "这次拍摄，您希望参考我哪一次既往作品的感觉" : "这次拍摄，您希望参考我哪些既往作品的感觉？"} required={isBasic} optional={!isBasic} helper={<>请从我的小红书主页中选择最接近您预期的照片，并上传截图作为参考。<a className="reference-link" href="https://www.xiaohongshu.com/user/profile/6427c8ae0000000012011b86?xsec_token=ABlynNcfdmoYkwZT_ZRnoRGekrMnsvjyTlaTlOowh4pU0%3D&xsec_source=pc_search" target="_blank" rel="noopener noreferrer" aria-label="在新标签页打开摄影师的小红书主页" title="打开小红书主页"><i aria-hidden="true" /></a></>}>
+        <PhotoUpload photos={answers.styleReferencePhotos} onChange={(v) => set("styleReferencePhotos", v)} max={6} required={isBasic} label="上传主页作品截图" />
         <label className="textarea-field"><span>希望参考这张作品中的哪些部分？</span><textarea value={answers.styleReferenceReason} onChange={(event) => set("styleReferenceReason", event.target.value)} rows={5} placeholder="可以从人物状态、光线、色彩、构图、场景或整体氛围进行说明。请告诉我，希望在本次拍摄中保留或适度复现其中的哪些特点。" /></label>
       </Question>
     </>}
 
     {page === 3 && <>
-      <Question id="q7" number="07" title="人物占比偏好" required helper="调整人物在画面中的大致占比。数值越低，环境所占比例越高；数值越高，人物越突出。">
+      {!isBasic && <Question id="q7" number="07" title="人物占比偏好" required helper="调整人物在画面中的大致占比。数值越低，环境所占比例越高；数值越高，人物越突出。">
         <CompositionScale value={answers.subjectScale} onChange={(v) => set("subjectScale", v)} onInteract={() => set("subjectScaleTouched", true)} />
         <h4>景别偏好</h4><ChoiceGroup compact options={["面部或局部特写", "半身", "全身", "人物与环境的大景", "没有特别偏好"]} value={answers.shots} onChange={(v) => set("shots", v as string[])} multiple max={2} exclusive="没有特别偏好" />
-      </Question>
-      <Question number="08" title="拍摄道具或自带物品" optional helper="该题为选填，用于告诉我您想出现的元素，如果暂时没想好也可以选择不填，则代表希望摄影师自由根据主题来准备与策划。">
+      </Question>}
+      <Question number="08" title={isBasic ? "除了主题中我已经准备好的道具，还有什么想自带的道具" : "拍摄道具或自带物品"} optional helper={isBasic ? "该题为选填，曾经既有作品中的道具我会准备好，如果您有额外想自带的道具，也可以告诉我，我可以根据主题风格来与您协商与设计。" : "该题为选填，用于告诉我您想出现的元素，如果暂时没想好也可以选择不填，则代表希望摄影师自由根据主题来准备与策划。"}>
         <div className="prompt-list" aria-label="填写提示">{propPrompts.map((item) => <span key={item}>{item}</span>)}</div>
         <label className="textarea-field"><span>内容说明</span><textarea value={answers.propNotes} onChange={(e) => set("propNotes", e.target.value)} rows={6} placeholder="例如：准备携带一本旧书和一条白色丝巾；希望在部分照片中使用，但不需要贯穿整组拍摄。" /></label>
         <PhotoUpload photos={answers.propPhotos} onChange={(v) => set("propPhotos", v)} max={6} label="上传相关图片" />
       </Question>
     </>}
 
-    {page === 4 && <>
+    {page === 4 && !isBasic && <>
       <Question number="09" title="其他参考内容" optional helper="如果还有电影、书籍、音乐、文字或社交媒体内容可供参考，可以在这里补充。">
         <PhotoUpload photos={answers.inspirationPhotos} onChange={(v) => set("inspirationPhotos", v)} max={8} label="上传灵感图片" />
         <label className="textarea-field"><span>参考链接 · 每行一个</span><textarea value={answers.inspirationLinks} onChange={(e) => set("inspirationLinks", e.target.value)} rows={3} placeholder="粘贴小红书、B站、电影页面或其他链接……" /></label>

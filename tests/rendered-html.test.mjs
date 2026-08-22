@@ -32,22 +32,28 @@ test("server-renders the photography questionnaire cover", async () => {
 
   const html = await response.text();
   assert.match(html, /<html lang="zh-CN">/i);
-  assert.match(html, /<title>拍摄前信息与偏好问卷<\/title>/i);
-  assert.match(html, /在见面之前/);
-  assert.match(html, /先认识此刻的你/);
+  assert.match(html, /<title>Before We Meet · 拍摄前风格与灵感问卷<\/title>/i);
+  assert.match(html, /Before We Meet/);
+  assert.match(html, /拍摄前风格与灵感问卷/);
   assert.match(html, /开始填写/);
-  assert.match(html, /所有照片与回答只在当前浏览器中整理/);
+  assert.match(html, /为保护您的隐私，填写时的数据仅保存在当前设备/);
   assert.doesNotMatch(html, /codex-preview|loading skeleton|Your site is taking shape/i);
 });
 
 test("keeps production metadata and Cloudflare deployment settings", async () => {
-  const [layout, packageJson, viteConfig] = await Promise.all([
+  const [layout, page, packageJson, viteConfig] = await Promise.all([
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../vite.config.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.match(layout, /title:\s*"拍摄前信息与偏好问卷"/);
+  assert.match(layout, /title:\s*"Before We Meet · 拍摄前风格与灵感问卷"/);
+  assert.match(page, /单人基础 · ¥499/);
+  assert.match(page, /双人定制 · ¥899/);
+  assert.match(page, /const isBasic = answers\.package\.includes\("基础"\)/);
+  assert.match(page, /const visiblePages = isBasic \? \[1, 2, 3, 5, 6, 7\]/);
+  assert.match(page, /required=\{isBasic\} optional=\{!isBasic\}/);
   assert.match(packageJson, /"name": "photo-basic-questionnaire"/);
   assert.match(packageJson, /"deploy":/);
   assert.match(viteConfig, /name: "photo-basic-questionnaire"/);
