@@ -1,7 +1,8 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { ChangeEvent, CSSProperties, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Photo = { id: string; name: string; url: string };
 type MissingItem = { id: string; page: number; chapter: string; question: string; detail: string };
@@ -316,7 +317,7 @@ function PhotoUpload({ photos, onChange, max, label, required = false }: {
 }
 
 function Question({ id, number, title, helper, required, optional, children }: { id?: string; number: string; title: string; helper?: ReactNode; required?: boolean; optional?: boolean; children: ReactNode }) {
-  return <article id={id} className="question-block">
+  return <article id={id} className="question-block" tabIndex={-1}>
     <div className="question-top"><span className="question-no">{number}</span>{required ? <span className="required">需要回答</span> : optional ? <span className="optional">选填</span> : null}</div>
     <h3>{title}</h3>{helper && <p className="helper">{helper}</p>}{children}
   </article>;
@@ -332,6 +333,56 @@ function ResultItem({ label, children }: { label: string; children: ReactNode })
 
 function Tags({ values }: { values: string[] }) {
   return values.length ? <div className="result-tags">{values.map((value, index) => <i key={value}>{index + 1 <= 3 ? `${index + 1}. ` : ""}{value}</i>)}</div> : <em>未填写</em>;
+}
+
+function MissingFieldsModal({ items, onClose, onSelect }: { items: MissingItem[]; onClose: () => void; onSelect: (item: MissingItem) => void }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!items.length) return;
+    const body = document.body;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const scrollY = window.scrollY;
+    const previous = { overflow: body.style.overflow, position: body.style.position, top: body.style.top, width: body.style.width };
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    const focusTimer = window.setTimeout(() => dialogRef.current?.focus({ preventScroll: true }), 30);
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", onKeyDown);
+      body.style.overflow = previous.overflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.width = previous.width;
+      window.scrollTo(0, scrollY);
+      previousFocus?.focus({ preventScroll: true });
+    };
+  }, [items.length, onClose]);
+
+  if (!mounted || !items.length) return null;
+  return createPortal(
+    <div className="modal-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} className="missing-modal" role="dialog" aria-modal="true" aria-labelledby="missing-title" aria-describedby="missing-description" tabIndex={-1}>
+        <button className="modal-close" type="button" aria-label="关闭未填写项目提示" onClick={onClose}>×</button>
+        <div className="missing-modal-heading">
+          <span className="missing-alert-mark" aria-hidden="true">!</span>
+          <div><p className="eyebrow">REQUIRED INFORMATION</p><h2 id="missing-title">还有 {items.length} 项需要补充</h2></div>
+        </div>
+        <p id="missing-description">完成以下必答内容后，才能导出 PDF。点击任意一项可直接回到对应问题。</p>
+        <div className="missing-list">{items.map((item) => <button key={item.id} type="button" onClick={() => onSelect(item)}><span>{item.chapter} · {item.question}</span><small>{item.detail}</small><b>去填写 <i aria-hidden="true">→</i></b></button>)}</div>
+      </section>
+    </div>,
+    document.body,
+  );
 }
 
 export default function Home() {
@@ -395,13 +446,31 @@ export default function Home() {
   };
   const next = () => navigatePage(visiblePages[visiblePageIndex + 1] ?? 8, "forward");
   const previous = () => navigatePage(visiblePages[visiblePageIndex - 1] ?? 0, "back");
+  const closeMissingModal = useCallback(() => setMissingItems([]), []);
   const jumpToMissing = (item: MissingItem) => {
     setMissingItems([]); setPage(item.page); setPageMotion("back-in");
     window.setTimeout(() => {
-      const element = document.getElementById(item.id); element?.scrollIntoView({ behavior: "smooth", block: "center" });
-      element?.classList.add("attention"); window.setTimeout(() => element?.classList.remove("attention"), 1800);
-      window.setTimeout(() => setPageMotion("idle"), 650);
-    }, 100);
+      const startedAt = performance.now();
+      const revealTarget = () => {
+        const element = document.getElementById(item.id);
+        if (!element) {
+          if (performance.now() - startedAt < 2400) window.requestAnimationFrame(revealTarget);
+          else setPageMotion("idle");
+          return;
+        }
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: window.innerWidth <= 680 ? "start" : "center" });
+        window.setTimeout(() => {
+          element.classList.remove("attention");
+          void element.offsetWidth;
+          element.classList.add("attention");
+          element.focus({ preventScroll: true });
+          window.setTimeout(() => element.classList.remove("attention"), 3100);
+        }, reduceMotion ? 40 : 520);
+        window.setTimeout(() => setPageMotion("idle"), 650);
+      };
+      revealTarget();
+    }, 120);
   };
 
   const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
@@ -571,8 +640,7 @@ export default function Home() {
     <div className="result-actions"><button className="primary" data-petal-count="11" type="button" disabled={downloading} onClick={downloadPdf}>{downloading ? "正在整理故事…" : "下载 PDF 拍摄档案"}</button><button className="secondary" data-petal-count="7" type="button" onClick={() => navigatePage(6, "back")}>返回修改</button></div>
     <p className="privacy">PDF 在当前设备本地生成。页面不会自动发送或保存您的回答。</p>
     {toast && <div className="toast">{toast}</div>}
-    {missingItems.length > 0 && <div className="modal-backdrop" role="presentation"><section className="missing-modal" role="dialog" aria-modal="true" aria-labelledby="missing-title"><button className="modal-close" type="button" aria-label="关闭" onClick={() => setMissingItems([])}>×</button><p className="eyebrow">REQUIRED INFORMATION</p><h2 id="missing-title">还有 {missingItems.length} 项需要补充</h2><p>完成以下必答内容后，才能导出 PDF。点击任意一项可直接回到对应问题。</p><div className="missing-list">{missingItems.map((item) => <button key={item.id} type="button" onClick={() => jumpToMissing(item)}><span>{item.chapter} · {item.question}</span><small>{item.detail}</small><b>去填写 →</b></button>)}</div></section></div>}
-  </section></main>; }
+  </section><MissingFieldsModal items={missingItems} onClose={closeMissingModal} onSelect={jumpToMissing} /></main>; }
 
   return <main className={`site-shell form-shell ${alignmentClass}`} style={sceneStyle}><PortfolioBackdrop active={portfolioIndex} previous={previousPortfolioIndex} quiet /><RippleLayer accent={currentPortfolio.accent} /><ClickPetalLayer /><AmbientAudio /><section className={`questionnaire-card form-card ${motionClass}`}>
     <header className="chapter-header"><div className="progress"><span>{String(visiblePageIndex + 1).padStart(2, "0")} / {String(visiblePages.length).padStart(2, "0")}</span><span>{chapters[page - 1]}</span></div><div className="progress-line"><i style={{ width: `${(visiblePageIndex + 1) / visiblePages.length * 100}%` }} /></div><p className="eyebrow">CHAPTER {String(visiblePageIndex + 1).padStart(2, "0")}</p><h2>{chapters[page - 1]}</h2></header>
